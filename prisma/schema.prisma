@@ -1,0 +1,232 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  TRAINEE
+  TRAINER
+  ADMIN
+}
+
+enum UserStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum CourseStatus {
+  DRAFT
+  PUBLISHED
+  ARCHIVED
+}
+
+enum EnrollmentStatus {
+  ACTIVE
+  COMPLETED
+  DROPPED
+}
+
+model User {
+  id            String    @id @default(cuid())
+  email         String    @unique
+  passwordHash  String
+  name          String
+  role          Role      @default(TRAINEE)
+  status        UserStatus @default(PENDING)
+  avatar        String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  traineeProfile   TraineeProfile?
+  trainerProfile   TrainerProfile?
+  enrollments      Enrollment[]
+  assessments      AssessmentAttempt[]
+  feedbacks        Feedback[]
+  notifications    Notification[]
+  coursesCreated   Course[]          @relation("CourseCreator")
+  materialsUploaded CourseMaterial[] @relation("MaterialUploader")
+  questionnaires   Questionnaire[]   @relation("QuestionnaireCreator")
+}
+
+model TraineeProfile {
+  id              String   @id @default(cuid())
+  userId          String   @unique
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  qualifications  String?
+  workExperience  String?
+  interests       String?
+  skills          String[]
+  certificates    String[]
+  competencyTags  String[]
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+model TrainerProfile {
+  id              String   @id @default(cuid())
+  userId          String   @unique
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  specialization  String?
+  experience      String?
+  bio             String?
+  competencyTags  String[]
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+model Course {
+  id          String        @id @default(cuid())
+  title       String
+  description String
+  thumbnail   String?
+  status      CourseStatus  @default(DRAFT)
+  creatorId   String
+  creator     User          @relation("CourseCreator", fields: [creatorId], references: [id])
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  modules       CourseModule[]
+  enrollments   Enrollment[]
+  materials     CourseMaterial[]
+  questionnaires Questionnaire[]
+  feedbacks     Feedback[]
+}
+
+model CourseModule {
+  id          String   @id @default(cuid())
+  courseId    String
+  course      Course   @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  title       String
+  description String?
+  order       Int
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  lessons Lesson[]
+}
+
+model Lesson {
+  id          String   @id @default(cuid())
+  moduleId    String
+  module      CourseModule @relation(fields: [moduleId], references: [id], onDelete: Cascade)
+  title       String
+  content     String?
+  videoUrl    String?
+  duration    Int?
+  order       Int
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model CourseMaterial {
+  id          String   @id @default(cuid())
+  courseId    String
+  course      Course   @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  uploaderId  String
+  uploader    User     @relation("MaterialUploader", fields: [uploaderId], references: [id])
+  title       String
+  type        String   // PDF, VIDEO, LINK, DOCUMENT
+  url         String
+  description String?
+  createdAt   DateTime @default(now())
+}
+
+model Enrollment {
+  id        String           @id @default(cuid())
+  userId    String
+  user      User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  courseId  String
+  course    Course           @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  status    EnrollmentStatus @default(ACTIVE)
+  progress  Int              @default(0)
+  enrolledAt DateTime        @default(now())
+  completedAt DateTime?
+
+  @@unique([userId, courseId])
+}
+
+model Questionnaire {
+  id          String   @id @default(cuid())
+  courseId    String
+  course      Course   @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  creatorId   String
+  creator     User     @relation("QuestionnaireCreator", fields: [creatorId], references: [id])
+  title       String
+  description String?
+  deadline    DateTime
+  timeLimit   Int?     // minutes
+  passingScore Int     @default(60)
+  isPublished Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  questions Question[]
+  attempts  AssessmentAttempt[]
+}
+
+model Question {
+  id             String   @id @default(cuid())
+  questionnaireId String
+  questionnaire  Questionnaire @relation(fields: [questionnaireId], references: [id], onDelete: Cascade)
+  text           String
+  type           String   // MCQ, TRUE_FALSE
+  options        String[] // JSON array
+  correctAnswer  String
+  explanation    String?
+  points         Int      @default(1)
+  order          Int
+  createdAt      DateTime @default(now())
+}
+
+model AssessmentAttempt {
+  id              String   @id @default(cuid())
+  userId          String
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  questionnaireId String
+  questionnaire   Questionnaire @relation(fields: [questionnaireId], references: [id], onDelete: Cascade)
+  answers         Json     // { questionId: answer }
+  score           Int
+  passed          Boolean
+  startedAt       DateTime @default(now())
+  submittedAt     DateTime?
+  timeSpent       Int?     // seconds
+}
+
+model Feedback {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  courseId  String
+  course    Course   @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  rating    Int      // 1-5
+  comment   String?
+  createdAt DateTime @default(now())
+
+  @@unique([userId, courseId])
+}
+
+model Notification {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title     String
+  message   String
+  type      String   // INFO, SUCCESS, WARNING, ERROR
+  read      Boolean  @default(false)
+  link      String?
+  createdAt DateTime @default(now())
+}
+
+model CompetencyMapping {
+  id            String   @id @default(cuid())
+  subject       String   @unique
+  trainerIds    String[]
+  requiredTags  String[]
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
