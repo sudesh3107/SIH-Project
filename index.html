@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>EduBridge - Inclusive Learning Platform</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800;900&family=OpenDyslexic&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+  <link rel="stylesheet" href="css/style.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/0.160.0/three.min.js"></script>
+</head>
+<body id="app-body">
+
+  <div class="toast-container" id="toast-container"></div>
+
+  <nav class="navbar">
+    <a class="navbar-brand" href="#" onclick="showSection('home');return false;">
+      <div class="navbar-logo"><i class="fa-solid fa-ear-listen"></i></div>
+      <div class="navbar-title">Edu<span>Bridge</span></div>
+    </a>
+    <div class="navbar-nav">
+      <button class="nav-link active" data-section="home" onclick="showSection('home')"><i class="fa-solid fa-house"></i> <span>Home</span></button>
+      <button class="nav-link" data-section="learn" onclick="showSection('learn')"><i class="fa-solid fa-hand"></i> <span>Learn Signs</span></button>
+      <button class="nav-link" data-section="dictionary" onclick="showSection('dictionary')"><i class="fa-solid fa-book"></i> <span>Dictionary</span></button>
+      <button class="nav-link" data-section="speech" onclick="showSection('speech')"><i class="fa-solid fa-volume-high"></i> <span>Speech</span></button>
+      <button class="nav-link" data-section="subtitles" onclick="showSection('subtitles')"><i class="fa-solid fa-closed-captioning"></i> <span>Captions</span></button>
+      <button class="nav-link" data-section="practice" onclick="showSection('practice')"><i class="fa-solid fa-gamepad"></i> <span>Practice</span></button>
+      <button class="nav-link" data-section="progress" onclick="showSection('progress')"><i class="fa-solid fa-chart-line"></i> <span>Progress</span></button>
+    </div>
+  </nav>
+
+  <div class="a11y-toolbar">
+    <button class="a11y-btn" onclick="toggleDyslexia()" title="Dyslexia Mode" id="btn-dyslexia"><i class="fa-solid fa-font"></i></button>
+    <button class="a11y-btn" onclick="toggleContrast()" title="High Contrast" id="btn-contrast"><i class="fa-solid fa-circle-half-stroke"></i></button>
+  </div>
+  <div class="font-controls">
+    <button class="font-btn" onclick="adjustFont(1)" title="Increase Font">A+</button>
+    <button class="font-btn" onclick="adjustFont(-1)" title="Decrease Font">A-</button>
+  </div>
+
+  <section id="sec-home">
+    <div class="hero">
+      <div class="hero-content">
+        <div class="hero-badge"><i class="fa-solid fa-universal-access"></i> Built for Every Learner</div>
+        <h1>Sign Language. Speech. <br><span class="gradient-text">Subtitles. All One Place.</span></h1>
+        <p>EduBridge empowers disabled learners through sign language avatars, text-to-speech, real-time captions, and accessible design.</p>
+        <div class="hero-buttons">
+          <button class="btn-primary" onclick="showSection('learn')"><i class="fa-solid fa-hand"></i> Start Learning</button>
+          <button class="btn-secondary" onclick="showSection('dictionary')"><i class="fa-solid fa-book"></i> Browse Dictionary</button>
+        </div>
+      </div>
+    </div>
+    <div class="features">
+      <div class="section-title">
+        <h2>Accessibility Tools</h2>
+        <p>Features designed to make learning open to everyone</p>
+      </div>
+      <div class="features-grid">
+        <div class="feature-card">
+          <div class="feature-icon indigo"><i class="fa-solid fa-hand"></i></div>
+          <h3>3D Sign Language</h3>
+          <p>Learn ASL with interactive 3D avatar demonstrations of every letter and common word.</p>
+        </div>
+        <div class="feature-card">
+          <div class="feature-icon cyan"><i class="fa-solid fa-volume-high"></i></div>
+          <h3>Speech Mode</h3>
+          <p>Text-to-speech reads content aloud for visually impaired learners. Supports multiple voices and speeds.</p>
+        </div>
+        <div class="feature-card">
+          <div class="feature-icon green"><i class="fa-solid fa-closed-captioning"></i></div>
+          <h3>Live Captions</h3>
+          <p>Speech-to-text converts spoken words into subtitles in real-time. Perfect for deaf and hard-of-hearing users.</p>
+        </div>
+        <div class="feature-card">
+          <div class="feature-icon pink"><i class="fa-solid fa-universal-access"></i></div>
+          <h3>Full Accessibility</h3>
+          <p>Dyslexia font, high contrast mode, adjustable text size, and screen reader support built-in.</p>
+        </div>
+        <div class="feature-card">
+          <div class="feature-icon orange"><i class="fa-solid fa-gamepad"></i></div>
+          <h3>Practice Mode</h3>
+          <p>Quiz yourself on sign language with fun, interactive exercises and track your progress.</p>
+        </div>
+        <div class="feature-card">
+          <div class="feature-icon indigo"><i class="fa-solid fa-graduation-cap"></i></div>
+          <h3>Structured Lessons</h3>
+          <p>Follow guided learning paths from alphabet basics to advanced communication.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section id="sec-learn" class="section" style="display:none;">
+    <div class="container">
+      <div class="page-title">Sign Language Lab</div>
+      <div class="page-subtitle">Watch the 3D avatar demonstrate each sign. Click arrows to browse.</div>
+      <div class="lesson-tabs" id="lesson-tabs"></div>
+      <div class="avatar-section">
+        <div id="avatar-container"></div>
+        <div class="avatar-info">
+          <div class="letter-category" id="sign-category">Letter</div>
+          <div class="letter-name" id="sign-name">A</div>
+          <div class="letter-display" id="sign-display">A</div>
+          <div class="letter-desc" id="sign-desc">Fist with thumb across fingers</div>
+          <div class="letter-nav">
+            <button class="nav-btn" onclick="navigateSign(-1)"><i class="fa-solid fa-chevron-left"></i> Previous</button>
+            <button class="nav-btn primary" onclick="playSignAnimation()"><i class="fa-solid fa-play"></i> Animate</button>
+            <button class="nav-btn" onclick="navigateSign(1)">Next <i class="fa-solid fa-chevron-right"></i></button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section id="sec-dictionary" class="section" style="display:none;">
+    <div class="container">
+      <div class="page-title">Sign Language Dictionary</div>
+      <div class="page-subtitle">Search and explore all signs</div>
+      <div class="dictionary-search">
+        <input type="text" id="dict-search" placeholder="Search signs..." oninput="filterDictionary()">
+      </div>
+      <div class="category-filters" id="cat-filters"></div>
+      <div class="sign-grid" id="sign-grid"></div>
+    </div>
+  </section>
+
+  <section id="sec-speech" class="section" style="display:none;">
+    <div class="container">
+      <div class="page-title">Speech Mode</div>
+      <div class="page-subtitle">Text-to-speech reads content aloud. Adjust speed and voice below.</div>
+      <div class="speech-panel">
+        <div class="speech-btn-row">
+          <button class="speech-btn-sm" onclick="loadSampleText('greeting')">Greeting</button>
+          <button class="speech-btn-sm" onclick="loadSampleText('lesson')">Lesson</button>
+          <button class="speech-btn-sm" onclick="loadSampleText('story')">Short Story</button>
+          <button class="speech-btn-sm" onclick="loadSampleText('news')">News</button>
+        </div>
+        <textarea class="speech-display" id="speech-text" placeholder="Type or paste text here to hear it spoken aloud..." rows="6">Welcome to EduBridge! This is a demonstration of the text-to-speech feature. The system reads your text aloud at adjustable speeds, making learning accessible for everyone who needs it.</textarea>
+        <div class="speed-control">
+          <label for="speed-slider"><i class="fa-solid fa-gauge"></i> Speed:</label>
+          <input type="range" id="speed-slider" class="speed-slider" min="0.5" max="2" step="0.1" value="1" oninput="updateSpeed(this.value)">
+          <span id="speed-value">1.0x</span>
+        </div>
+        <div class="speech-controls" style="margin-top:20px;">
+          <button class="speech-btn primary" id="tts-btn" onclick="toggleTTS()"><i class="fa-solid fa-volume-high"></i> Play</button>
+          <button class="speech-btn secondary" onclick="speakSelected()"><i class="fa-solid fa-hand-pointer"></i> Speak Selection</button>
+          <button class="speech-btn danger" onclick="stopTTS()"><i class="fa-solid fa-stop"></i> Stop</button>
+        </div>
+        <div class="speech-status" id="speech-status">Ready to speak</div>
+      </div>
+    </div>
+  </section>
+
+  <section id="sec-subtitles" class="section" style="display:none;">
+    <div class="container">
+      <div class="page-title">Live Captions</div>
+      <div class="page-subtitle">Speech-to-text converts your voice into subtitles in real time</div>
+      <div class="speech-panel subtitle-panel">
+        <div class="speech-display" id="subtitle-display">
+          <span class="subtitle-caption">Waiting for speech input...</span>
+        </div>
+        <div style="margin-top:16px;">
+          <textarea class="subtitle-input" id="subtitle-input" placeholder="Or type text here to see it displayed as captions..." rows="3" oninput="updateCaptionDisplay()"></textarea>
+        </div>
+        <div class="speech-controls" style="margin-top:16px;">
+          <button class="speech-btn primary" id="stt-btn" onclick="toggleSTT()"><i class="fa-solid fa-microphone"></i> Start Listening</button>
+          <button class="speech-btn secondary" onclick="clearCaption()"><i class="fa-solid fa-eraser"></i> Clear</button>
+          <button class="speech-btn secondary" onclick="copyCaption()"><i class="fa-solid fa-copy"></i> Copy</button>
+        </div>
+        <div class="speech-status" id="stt-status">Microphone inactive</div>
+      </div>
+    </div>
+  </section>
+
+  <section id="sec-practice" class="section" style="display:none;">
+    <div class="container">
+      <div class="page-title">Practice Mode</div>
+      <div class="page-subtitle">Test your sign language knowledge</div>
+      <div class="practice-area" id="practice-area">
+        <div class="practice-header">
+          <span class="practice-score" id="practice-score">Score: 0</span>
+          <span class="practice-score" id="practice-streak">Streak: 0</span>
+        </div>
+        <div class="practice-question">
+          <div class="q-text" id="practice-q-text">What sign is this?</div>
+          <div class="q-hint" id="practice-q-hint">Click the letter that matches the shown sign</div>
+        </div>
+        <div class="practice-options" id="practice-options"></div>
+      </div>
+    </div>
+  </section>
+
+  <section id="sec-progress" class="section" style="display:none;">
+    <div class="container">
+      <div class="page-title">Your Progress</div>
+      <div class="page-subtitle">Track your learning journey</div>
+      <div class="progress-grid" id="progress-grid"></div>
+      <div class="section-title">
+        <h2 style="font-size:1.4rem;">Learning Paths</h2>
+      </div>
+      <div id="lesson-list"></div>
+    </div>
+  </section>
+
+  <footer class="footer">
+    <p>EduBridge &mdash; Inclusive Learning Platform &mdash; Designed for Accessibility</p>
+  </footer>
+
+  <script src="data/signData.js"></script>
+  <script src="js/avatar3d.js"></script>
+  <script src="js/speechModule.js"></script>
+  <script src="js/accessibility.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>
