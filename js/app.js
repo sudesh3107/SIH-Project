@@ -19,12 +19,16 @@ function initApp() {
   showSection('home');
 }
 
-initApp();
+function showSection(section) {
   document.querySelectorAll('.nav-link').forEach(function(l) {
     l.classList.toggle('active', l.dataset.section === section);
   });
   currentSection = section;
-
+  document.querySelectorAll('section[id^="sec-"]').forEach(function(s) {
+    s.style.display = 'none';
+  });
+  var sec = document.getElementById('sec-' + section);
+  if (sec) sec.style.display = 'block';
   if (section === 'learn') {
     currentSignIndex = 0;
     buildLessonTabs();
@@ -229,13 +233,7 @@ function buildProgress() {
   });
 }
 
-document.addEventListener('DOMContentLoaded', function() {
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', initApp);
-  } else {
-    initApp();
-  }
-});
+document.addEventListener('DOMContentLoaded', initApp);
 
 window.showSection = showSection;
 window.navigateSign = navigateSign;

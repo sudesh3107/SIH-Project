@@ -309,14 +309,14 @@ var SIGN_DATA = {
       id: 1,
       title: "The ASL Alphabet",
       desc: "Learn letters A through Z with hand shapes",
-      signs: Object.keys(SIGN_DATA.alphabet).slice(0, 13),
+      signs: ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M'],
       difficulty: "Beginner"
     },
     {
       id: 2,
       title: "Letters Q-Z",
       desc: "Complete the alphabet and practice tricky letters",
-      signs: Object.keys(SIGN_DATA.alphabet).slice(13),
+      signs: ['N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z'],
       difficulty: "Beginner"
     },
     {
