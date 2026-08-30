@@ -1,4 +1,4 @@
-const SIGN_DATA = {
+var SIGN_DATA = {
   alphabet: {
     A: {
       desc: "Fist with thumb across fingers",
@@ -349,3 +349,4 @@ const SIGN_DATA = {
     }
   ]
 };
+window.SIGN_DATA = SIGN_DATA;
