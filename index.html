@@ -168,6 +168,19 @@
 
       <button
         class="nav-link"
+        data-section="pdf"
+        onclick="showSection('pdf')"
+      >
+
+        <i class="fa-solid fa-file-pdf"></i>
+
+        <span>PDF Studio</span>
+
+      </button>
+
+
+      <button
+        class="nav-link"
         data-section="speech"
         onclick="showSection('speech')"
       >
@@ -436,6 +449,26 @@
         </div>
 
 
+        <div class="feature-card" onclick="showSection('pdf')" style="cursor:pointer;">
+
+          <div class="feature-icon" style="background:#fef3c7; color:#d97706;">
+
+            <i class="fa-solid fa-file-pdf"></i>
+
+          </div>
+
+          <h3>
+            PDF Studio
+          </h3>
+
+          <p>
+            Upload any PDF — get instant summaries, auto flashcards,
+            and listen in audible format. All in your browser.
+          </p>
+
+        </div>
+
+
         <div class="feature-card">
 
           <div class="feature-icon pink">
@@ -672,6 +705,224 @@
         class="sign-grid"
         id="sign-grid"
       ></div>
+
+    </div>
+
+  </section>
+
+
+  <!-- =====================================================
+       PDF STUDIO
+  ====================================================== -->
+
+  <section
+    id="sec-pdf"
+    class="section"
+    style="display:none;"
+  >
+
+    <div class="container">
+
+      <div class="page-title">
+        <i class="fa-solid fa-file-pdf" style="color:var(--primary);"></i>
+        PDF Studio
+      </div>
+
+      <div class="page-subtitle">
+        Upload a PDF and instantly get a concise summary, interactive flashcards, and an audible version. 100% in-browser — your file never leaves your device.
+      </div>
+
+
+      <!-- UPLOAD ZONE -->
+      <div class="pdf-upload-card">
+
+        <div
+          id="pdf-drop-zone"
+          class="pdf-drop-zone"
+          tabindex="0"
+          role="button"
+          aria-label="Upload PDF — click or drag and drop"
+        >
+          <div class="pdf-drop-icon">
+            <i class="fa-solid fa-cloud-arrow-up"></i>
+          </div>
+          <div class="pdf-drop-title">Drag & drop your PDF here</div>
+          <div class="pdf-drop-sub">or click to browse • max 20MB • text-based PDFs (scanned needs OCR)</div>
+          <button class="btn-primary pdf-browse-btn" type="button">
+            <i class="fa-solid fa-folder-open"></i> Choose PDF
+          </button>
+          <div id="pdf-file-meta" class="pdf-file-meta" style="display:none;"></div>
+          <div id="pdf-extract-progress" class="pdf-extract-progress" style="display:none;"></div>
+        </div>
+
+        <input type="file" id="pdf-file-input" accept="application/pdf,.pdf" hidden>
+
+        <div class="pdf-upload-actions">
+          <button class="speech-btn-sm" onclick="loadPdfDemo()" type="button">
+            <i class="fa-solid fa-flask"></i> Try Demo (no file)
+          </button>
+          <button class="speech-btn-sm" onclick="clearPdfStudio()" type="button">
+            <i class="fa-solid fa-trash"></i> Clear
+          </button>
+          <button class="speech-btn-sm" id="pdf-btn-toggle-raw" onclick="togglePdfRawPreview()" type="button">
+            <i class="fa-solid fa-eye"></i> Show extracted text
+          </button>
+        </div>
+
+        <div id="pdf-raw-box" class="pdf-raw-box" style="display:none;">
+          <div class="pdf-raw-title"><i class="fa-solid fa-file-lines"></i> Extracted Text Preview (first 4000 chars)</div>
+          <div id="pdf-raw-preview" class="pdf-raw-preview"></div>
+        </div>
+
+        <div id="pdf-loading" class="pdf-loading" style="display:none;">
+          <div class="spinner"></div>
+          <p>Extracting and analyzing your PDF...</p>
+        </div>
+
+        <div id="pdf-status" class="pdf-status info">Ready — upload a PDF to begin</div>
+      </div>
+
+
+      <!-- RESULTS — hidden until ready -->
+      <div id="pdf-ready" style="display:none; margin-top: 28px;">
+
+        <!-- TABS -->
+        <div id="pdf-tabs-row" class="pdf-tabs" style="display:none;">
+          <button id="pdf-tab-summary" class="pdf-tab active" onclick="switchPdfTab('summary')">
+            <i class="fa-solid fa-align-left"></i> Summarized Text
+          </button>
+          <button id="pdf-tab-flashcards" class="pdf-tab" onclick="switchPdfTab('flashcards')">
+            <i class="fa-solid fa-layer-group"></i> Flashcards
+          </button>
+          <button id="pdf-tab-audio" class="pdf-tab" onclick="switchPdfTab('audio')">
+            <i class="fa-solid fa-headphones"></i> Audible Format
+          </button>
+        </div>
+
+
+        <!-- ===== SUMMARY PANEL ===== -->
+        <div id="pdf-panel-summary" class="pdf-panel">
+
+          <div class="pdf-panel-header">
+            <h3><i class="fa-solid fa-wand-magic-sparkles"></i> Smart Summary</h3>
+            <p>Extractive, privacy-first — runs entirely in your browser. Pick a length.</p>
+          </div>
+
+          <div class="pdf-summary-controls">
+            <div class="pdf-level-row">
+              <span class="pdf-level-label"><i class="fa-solid fa-sliders"></i> Length:</span>
+              <button class="pdf-summary-level-btn" data-level="short" onclick="setSummaryLevel('short')">Short <span>3–5 sents</span></button>
+              <button class="pdf-summary-level-btn active" data-level="medium" onclick="setSummaryLevel('medium')">Medium <span>5–8 sents</span></button>
+              <button class="pdf-summary-level-btn" data-level="detailed" onclick="setSummaryLevel('detailed')">Detailed <span>30%</span></button>
+            </div>
+            <div id="pdf-summary-stats" class="pdf-summary-stats"></div>
+          </div>
+
+          <div id="pdf-summary-content" class="pdf-summary-content">
+            <p class="pdf-empty">Upload a PDF to generate a summary.</p>
+          </div>
+
+          <ul id="pdf-summary-bullets" class="pdf-bullets"></ul>
+
+          <div class="pdf-panel-actions">
+            <button id="pdf-btn-copy-summary" class="speech-btn primary" onclick="copyPdfSummary()" disabled><i class="fa-solid fa-copy"></i> Copy</button>
+            <button id="pdf-btn-download-summary" class="speech-btn secondary" onclick="downloadPdfSummary()" disabled><i class="fa-solid fa-download"></i> Download .txt</button>
+            <button id="pdf-btn-speak-summary" class="speech-btn secondary" onclick="switchPdfTab('audio'); setTimeout(function(){playPdfFromSentence(0)},300)" disabled><i class="fa-solid fa-volume-high"></i> Listen</button>
+          </div>
+
+        </div>
+
+
+        <!-- ===== FLASHCARDS PANEL ===== -->
+        <div id="pdf-panel-flashcards" class="pdf-panel" style="display:none;">
+
+          <div class="pdf-panel-header">
+            <h3><i class="fa-solid fa-clone"></i> Auto Flashcards</h3>
+            <p>Generated from your summary via cloze &amp; key-point questions. Click card to flip, navigate, shuffle.</p>
+          </div>
+
+          <div id="pdf-fc-empty" class="pdf-empty" style="padding:24px; text-align:center;">
+            <i class="fa-solid fa-layer-group" style="font-size:2rem; color:var(--text-muted);"></i>
+            <p style="margin-top:12px;">Upload a PDF to generate flashcards.</p>
+          </div>
+
+          <div id="pdf-flashcards-area"></div>
+
+          <div class="pdf-fc-controls">
+            <button id="pdf-fc-prev" class="nav-btn" onclick="navigatePdfCard(-1)"><i class="fa-solid fa-chevron-left"></i> Prev</button>
+            <button id="pdf-fc-flip" class="nav-btn primary" onclick="flipPdfCard()"><i class="fa-solid fa-eye"></i> Reveal</button>
+            <button id="pdf-fc-next" class="nav-btn" onclick="navigatePdfCard(1)">Next <i class="fa-solid fa-chevron-right"></i></button>
+          </div>
+
+          <div class="pdf-fc-meta">
+            <span id="pdf-fc-counter" class="pdf-fc-counter">0 / 0</span>
+            <div class="pdf-fc-progress-wrap"><div id="pdf-fc-progress" class="pdf-fc-progress"></div></div>
+            <div id="pdf-fc-dots" class="pdf-fc-dots"></div>
+          </div>
+
+          <div class="pdf-panel-actions">
+            <button class="speech-btn secondary" onclick="shufflePdfCards()"><i class="fa-solid fa-shuffle"></i> Shuffle</button>
+            <button class="speech-btn secondary" onclick="downloadPdfFlashcards()"><i class="fa-solid fa-download"></i> Download .txt</button>
+            <button class="speech-btn secondary" onclick="downloadPdfFlashcardsCSV()"><i class="fa-solid fa-file-csv"></i> Download CSV</button>
+          </div>
+
+        </div>
+
+
+        <!-- ===== AUDIO PANEL ===== -->
+        <div id="pdf-panel-audio" class="pdf-panel" style="display:none;">
+
+          <div class="pdf-panel-header">
+            <h3><i class="fa-solid fa-podcast"></i> Audible Format</h3>
+            <p>Listen to your summary (or full text) with browser Text-to-Speech. Adjust voice &amp; speed.</p>
+          </div>
+
+          <div class="pdf-audio-controls">
+
+            <div class="pdf-audio-row">
+              <label for="pdf-voice-select"><i class="fa-solid fa-microphone-lines"></i> Voice:</label>
+              <select id="pdf-voice-select" class="pdf-select"></select>
+            </div>
+
+            <div class="pdf-audio-row">
+              <label for="pdf-audio-source"><i class="fa-solid fa-file-lines"></i> Source:</label>
+              <select id="pdf-audio-source" class="pdf-select" onchange="onPdfAudioSourceChange()">
+                <option value="summary" selected>Summary (recommended)</option>
+                <option value="full">Full extracted text</option>
+              </select>
+            </div>
+
+            <div class="speed-control" style="justify-content:flex-start; margin: 12px 0;">
+              <label for="pdf-speed-slider"><i class="fa-solid fa-gauge"></i> Speed:</label>
+              <input type="range" id="pdf-speed-slider" class="speed-slider" min="0.5" max="2" step="0.1" value="1" oninput="updatePdfAudioSpeed(this.value)">
+              <span id="pdf-speed-value">1.0x</span>
+            </div>
+
+            <div class="speech-controls" style="justify-content:flex-start;">
+              <button id="pdf-audio-play" class="speech-btn primary" onclick="playPdfFromSentence(0)"><i class="fa-solid fa-play"></i> Play</button>
+              <button id="pdf-audio-stop" class="speech-btn danger" onclick="stopPdfAudio()"><i class="fa-solid fa-stop"></i> Stop</button>
+              <button class="speech-btn secondary" onclick="downloadPdfAudioTranscript()"><i class="fa-solid fa-download"></i> Transcript</button>
+            </div>
+
+            <div id="pdf-audio-count" class="pdf-audio-count">0 sentences</div>
+          </div>
+
+          <div id="pdf-audio-sentences" class="pdf-audio-list"></div>
+
+        </div>
+
+      </div>
+
+
+      <!-- HELP / INFO -->
+      <div class="pdf-help">
+        <h4><i class="fa-solid fa-circle-info"></i> How it works</h4>
+        <ul>
+          <li><strong>Summarizer:</strong> TF-based extractive algorithm — scores sentences by keyword frequency, position and length, then picks the most representative ones in original order. No AI API, no data leaves your browser.</li>
+          <li><strong>Flashcards:</strong> Cloze deletions + “What does the doc say about X?” questions auto-built from summary sentences. Flip, shuffle, export to TXT/CSV for Anki/Quizlet.</li>
+          <li><strong>Audible:</strong> Uses the <code>Web Speech API</code> (<code>speechSynthesis</code>). Same engine as Speech Mode. For a permanent MP3, use your OS screen reader's “Save audio” or re-record; browsers cannot directly export synthesized speech to file.</li>
+        </ul>
+      </div>
 
     </div>
 
@@ -1117,6 +1368,11 @@
   <script src="js/speechModule.js"></script>
 
   <script src="js/accessibility.js"></script>
+
+  <!-- PDF.js (for PDF Studio) -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+
+  <script src="js/pdfStudio.js"></script>
 
   <script src="js/app.js"></script>
 

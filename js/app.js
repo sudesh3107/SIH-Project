@@ -6,12 +6,13 @@ var practiceScore = 0;
 var practiceStreak = 0;
 var practiceQuestion = null;
 
-var sections = ['home', 'learn', 'dictionary', 'speech', 'subtitles', 'practice', 'progress'];
+var sections = ['home', 'learn', 'dictionary', 'pdf', 'speech', 'subtitles', 'practice', 'progress'];
 
 function initApp() {
   loadPreferences();
   initSpeech();
   initSTT();
+  try { if (typeof initPdfStudio === 'function') initPdfStudio(); } catch(e){ console.warn('pdfStudio init error', e); }
   // avatar3d.js is an ES module (deferred). It exposes window.initAvatar.
   // DOMContentLoaded fires after modules, so it should exist — fall back
   // to bare init() for older cached copies.
@@ -55,6 +56,16 @@ function showSection(section) {
   }
   if (section === 'dictionary') buildDictionary();
   if (section === 'progress') buildProgress();
+  if (section === 'pdf') {
+    try { if (typeof initPdfStudio === 'function' && !window._pdfInited) { initPdfStudio(); window._pdfInited = true; } } catch(e){}
+    // stop any stray TTS when leaving/entering? keep pdf audio running, but stop speech module if needed
+  } else {
+    // if leaving pdf while speaking, optionally keep playing — do not auto-stop
+  }
+  // always stop global TTS when switching away from speech/pdf to avoid overlap
+  if (section !== 'speech' && section !== 'pdf') {
+    try { if (typeof stopTTS === 'function') stopTTS(); } catch(e){}
+  }
 }
 
 function buildLessonTabs() {
