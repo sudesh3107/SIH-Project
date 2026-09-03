@@ -6,7 +6,7 @@ var practiceScore = 0;
 var practiceStreak = 0;
 var practiceQuestion = null;
 
-var sections = ['home', 'learn', 'dictionary', 'pdf', 'speech', 'subtitles', 'practice', 'quizzes', 'results', 'dashboard'];
+var sections = ['home', 'learn', 'dictionary', 'detect', 'pdf', 'speech', 'subtitles', 'practice', 'quizzes', 'results', 'dashboard'];
 
 function initApp() {
   loadPreferences();
@@ -14,6 +14,7 @@ function initApp() {
   initSTT();
   try { if (typeof initPdfStudio === 'function') initPdfStudio(); } catch(e){ console.warn('pdfStudio init error', e); }
   try { if (typeof initQuizModule === 'function') initQuizModule(); } catch(e){ console.warn('quizModule init error', e); }
+  try { if (typeof initSignDetect === 'function') initSignDetect(); } catch(e){ console.warn('signDetect init error', e); }
   // avatar3d.js is an ES module (deferred). It exposes window.initAvatar.
   // DOMContentLoaded fires after modules, so it should exist — fall back
   // to bare init() for older cached copies.
@@ -62,6 +63,15 @@ function showSection(section) {
   }
   if (section === 'dictionary') buildDictionary();
   if (section === 'dashboard') buildDashboard();
+  if (section === 'detect') {
+    try { if(typeof initSignDetect==='function') initSignDetect(); } catch(e){}
+    // auto-resize canvas when section becomes visible
+    setTimeout(function(){ try{ if(typeof resizeDetectCanvas==='function') resizeDetectCanvas(); }catch(e){} }, 200);
+  }
+  // stop webcam when leaving detect to save battery
+  if (section !== 'detect') {
+    try { if(typeof detectCameraActive!=='undefined' && detectCameraActive && typeof stopDetect==='function'){ /* keep running by default, but uncomment to auto-stop */ } } catch(e){}
+  }
   if (section === 'pdf') {
     try { if (typeof initPdfStudio === 'function' && !window._pdfInited) { initPdfStudio(); window._pdfInited = true; } } catch(e){}
   }

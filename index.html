@@ -168,6 +168,19 @@
 
       <button
         class="nav-link"
+        data-section="detect"
+        onclick="showSection('detect')"
+      >
+
+        <i class="fa-solid fa-camera"></i>
+
+        <span>Detect</span>
+
+      </button>
+
+
+      <button
+        class="nav-link"
         data-section="pdf"
         onclick="showSection('pdf')"
       >
@@ -429,6 +442,25 @@
           <p>
             Learn ASL with interactive 3D avatar
             demonstrations of every letter and common word.
+          </p>
+
+        </div>
+
+
+        <div class="feature-card" onclick="showSection('detect')" style="cursor:pointer; border-color:#c7d2fe;">
+
+          <div class="feature-icon" style="background:#eef2ff; color:#6366f1;">
+
+            <i class="fa-solid fa-camera"></i>
+
+          </div>
+
+          <h3>
+            Live Sign Detect
+          </h3>
+
+          <p>
+            Show any sign to your webcam — instant recognition with meaning, avatar demo & speech. Runs 100% in-browser.
           </p>
 
         </div>
@@ -788,6 +820,129 @@
         class="sign-grid"
         id="sign-grid"
       ></div>
+
+    </div>
+
+  </section>
+
+
+  <!-- =====================================================
+       LIVE SIGN DETECT (WEBCAM)
+  ====================================================== -->
+
+  <section
+    id="sec-detect"
+    class="section"
+    style="display:none;"
+  >
+
+    <div class="container">
+
+      <div class="page-title">
+        <i class="fa-solid fa-camera" style="color:var(--primary);"></i>
+        Live Sign Detect
+      </div>
+
+      <div class="page-subtitle">
+        Show a sign to your webcam — we’ll recognize it and tell you what it means. Powered by MediaPipe Hands, 100% in-browser. No video leaves your device.
+      </div>
+
+      <div class="detect-layout">
+
+        <!-- LEFT: VIDEO -->
+        <div class="detect-video-card">
+
+          <div class="detect-video-wrap">
+            <video id="detect-video" autoplay playsinline muted></video>
+            <canvas id="detect-canvas"></canvas>
+            <div id="detect-overlay" class="detect-overlay">
+              <div class="detect-placeholder">
+                <i class="fa-solid fa-video"></i>
+                <p>Camera off</p>
+                <span>Press <strong>Start Camera</strong> and allow permission. Use HTTPS / localhost.</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="detect-controls">
+            <button id="detect-start" class="speech-btn primary" onclick="toggleDetect()"><i class="fa-solid fa-play"></i> Start Camera</button>
+            <button class="speech-btn secondary" onclick="captureDetect()" title="Save snapshot"><i class="fa-solid fa-camera"></i> Snapshot</button>
+            <button class="speech-btn danger" onclick="stopDetect()"><i class="fa-solid fa-stop"></i> Stop</button>
+          </div>
+
+          <div class="detect-toggles">
+            <label class="detect-toggle"><input type="checkbox" id="detect-mirror" checked onchange="toggleMirror()"> <span>Mirror</span></label>
+            <label class="detect-toggle"><input type="checkbox" id="detect-landmarks" checked onchange="toggleLandmarks()"> <span>Landmarks</span></label>
+            <label class="detect-toggle"><input type="checkbox" id="detect-autospeak" onchange="toggleAutoSpeak()"> <span>Auto-speak</span></label>
+            <label class="detect-toggle" style="flex:1; min-width:160px;">
+              <span style="font-size:0.8rem; font-weight:700;">Mode</span>
+              <select id="detect-mode" class="pdf-select" style="padding:6px 10px; min-width:120px;" onchange="changeDetectMode(this.value)">
+                <option value="all" selected>All (Letters + Words)</option>
+                <option value="letters">Letters A–Z only</option>
+                <option value="words">Words only</option>
+              </select>
+            </label>
+          </div>
+
+          <div id="detect-status" class="detect-status info">Idle — press Start</div>
+
+          <div class="detect-settings">
+            <div class="speed-control" style="justify-content:flex-start; margin:0;">
+              <label for="detect-thresh" style="font-size:0.85rem; font-weight:700;"><i class="fa-solid fa-sliders"></i> Confidence</label>
+              <input type="range" id="detect-thresh" class="speed-slider" min="30" max="90" value="60" oninput="updateDetectThreshold(this.value)">
+              <span id="detect-thresh-val">60%</span>
+            </div>
+            <p style="font-size:0.78rem; color:var(--text-muted); margin-top:6px;">Lower = more sensitive, higher = stricter. Hold sign steady 1–2s.</p>
+          </div>
+
+        </div>
+
+        <!-- RIGHT: RESULT -->
+        <div class="detect-info-panel">
+
+          <div id="detect-result-card" class="detect-result-card empty">
+            <div class="detect-result-placeholder">
+              <i class="fa-solid fa-hand" style="font-size:1.6rem; color:var(--text-muted);"></i>
+              <p><strong>No sign yet</strong> — hold a hand clearly in frame, palm forward, fingers visible, good lighting.</p>
+              <span>Try: <strong>A</strong> (fist), <strong>B</strong> (flat palm), <strong>V</strong> (peace), <strong>L</strong> (L-shape), <strong>hello</strong></span>
+            </div>
+          </div>
+
+          <div id="detect-alternatives" class="detect-alternatives" style="display:none;"></div>
+
+          <div class="detect-history">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+              <h4 style="font-size:0.95rem; font-weight:800;"><i class="fa-solid fa-clock-rotate-left"></i> Recent detections</h4>
+              <button class="speech-btn-sm" onclick="clearDetectHistory()"><i class="fa-solid fa-trash"></i> Clear</button>
+            </div>
+            <div id="detect-history-list" class="detect-history-list"><p class="pdf-empty" style="padding:10px;">No detections yet.</p></div>
+          </div>
+
+          <div class="detect-help">
+            <h4><i class="fa-solid fa-lightbulb"></i> Tips for best accuracy</h4>
+            <ul>
+              <li>Plain background, front lighting on hand, avoid shadows.</li>
+              <li>Keep hand centered, ~30–50cm from camera, palm mostly forward.</li>
+              <li>Hold steady 1–2 seconds; avoid motion blur.</li>
+              <li>Currently best: <strong>A, B, C, D, L, V, W, O, F, Y, I</strong> + words <strong>hello, thank, please, yes, no, help, love</strong>.</li>
+              <li>Click any detected sign to hear it and see the 3D avatar in <em>Learn</em>.</li>
+              <li>Demo mode auto-simulates if MediaPipe fails to load (offline).</li>
+            </ul>
+          </div>
+
+        </div>
+
+      </div>
+
+      <div class="pdf-help" style="margin-top:18px;">
+        <h4><i class="fa-solid fa-shield-halved"></i> Privacy & How it works</h4>
+        <ul>
+          <li><strong>On-device:</strong> Hand landmarks are detected locally with MediaPipe Hands; no video is uploaded.</li>
+          <li><strong>Template matching:</strong> Finger curls (thumb–pinky) are compared to templates derived from <code>SIGN_DATA</code> (the same data that drives the 3D avatar). Confidence = 1 − distance/√5.</li>
+          <li><strong>Stability:</strong> Requires ~8 consistent frames + 60% confidence to confirm, preventing flicker.</li>
+          <li><strong>Fallback:</strong> If camera/MediaPipe unavailable, a demo loop simulates detections so the UI remains testable.</li>
+        </ul>
+      </div>
 
     </div>
 
@@ -1630,6 +1785,7 @@
 
       <!-- Quick actions -->
       <div class="dashboard-actions">
+        <button class="speech-btn primary" onclick="showSection('detect')"><i class="fa-solid fa-camera"></i> Live Detect</button>
         <button class="speech-btn primary" onclick="showSection('learn')"><i class="fa-solid fa-hand"></i> Continue Learning</button>
         <button class="speech-btn primary" onclick="showSection('quizzes')"><i class="fa-solid fa-clipboard-question"></i> Take a Quiz</button>
         <button class="speech-btn secondary" onclick="showSection('practice')"><i class="fa-solid fa-gamepad"></i> Practice</button>
@@ -1750,6 +1906,8 @@
   <script src="js/pdfStudio.js"></script>
 
   <script src="js/quizModule.js"></script>
+
+  <script src="js/signDetect.js"></script>
 
   <script src="js/app.js"></script>
 
