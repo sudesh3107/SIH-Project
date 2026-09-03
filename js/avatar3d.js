@@ -1528,7 +1528,7 @@ function poseToCurl(amount) {
 
 // Max sideways fan (radians) at |spread| = 1. Applied ONLY to
 // the base joint — spreading every joint would twist fingers.
-const SPREAD_MAX = 0.22;
+const SPREAD_MAX = 0.30;
 
 // Extra thumb rotation toward the palm at thumbOpp = 1
 // (thumb folded across the palm as in B / S).
@@ -1566,14 +1566,6 @@ function bendFinger(finger, curl01, progress, opts) {
         ) * eased;
 
 
-    const spread =
-        clamp01(
-            Math.abs(opts.spread || 0)
-        ) *
-        (opts.spread < 0 ? -1 : 1) *
-        eased;
-
-
     const opp =
         clamp01(
             opts.thumbOpp || 0
@@ -1582,7 +1574,6 @@ function bendFinger(finger, curl01, progress, opts) {
 
     if (
         curl <= 0.0001 &&
-        Math.abs(spread) <= 0.0001 &&
         opp <= 0.0001
     ) {
 
@@ -1640,14 +1631,6 @@ function bendFinger(finger, curl01, progress, opts) {
                 ez =
                     THUMB_OPPOSITION_Z * curl +
                     THUMB_OPP_GAIN_Z * opp;
-
-            } else if (
-                index === 0 &&
-                spread !== 0
-            ) {
-
-                ez =
-                    SPREAD_MAX * spread;
             }
 
 
@@ -1923,6 +1906,182 @@ function motionWrist(motion, progress) {
 }
 
 /* =========================================================
+   FINGER SPREAD (fan / cross)
+
+   Spread must separate fingertips LATERALLY ON SCREEN.
+   A finger-local euler can't do that reliably: the
+   palm-forward wrist offset twists finger-local frames,
+   so a local-Z rotation moves fingertips mostly in DEPTH
+   (verified invisible from the default camera).
+
+   Instead, rotate the base joint about the axis that is
+   the CAMERA direction expressed in the bone's local
+   frame. Palm-forward letters face the camera by
+   construction, so this fans fingers exactly within the
+   palm plane. It auto-adapts to any wrist offset.
+   Positive spread fans toward the thumb (radial) side.
+   ========================================================= */
+
+const _spreadHelperQ = { q: null };
+
+function getSpreadHelper() {
+
+    if (
+        !_spreadHelperQ.q
+    ) {
+
+        _spreadHelperQ.q =
+            new THREE.Quaternion();
+    }
+
+
+    return _spreadHelperQ.q;
+}
+
+function spreadFinger(finger, spread01, progress) {
+
+    if (
+        !finger ||
+        finger.length === 0
+    ) {
+
+        return;
+    }
+
+
+    const v =
+        typeof spread01 ===
+        "number" &&
+        isFinite(spread01)
+            ? Math.max(
+                -1,
+                Math.min(1, spread01)
+            )
+            : 0;
+
+
+    const eased =
+        easeInOut(
+            Math.max(
+                0,
+                Math.min(1, progress)
+            )
+        );
+
+
+    const angle =
+        SPREAD_MAX * v * eased;
+
+
+    if (
+        Math.abs(angle) <= 0.0001
+    ) {
+
+        return;
+    }
+
+
+    const bone =
+        finger[0];
+
+
+    const rest =
+        restPose.get(
+            bone.uuid
+        );
+
+
+    if (
+        !rest ||
+        !bone.parent ||
+        !camera
+    ) {
+
+        return;
+    }
+
+
+    // World orientation of the base joint at rest.
+    const parentQ =
+        new THREE.Quaternion();
+
+    bone.parent.getWorldQuaternion(
+        parentQ
+    );
+
+
+    const restWorldQ =
+        parentQ.multiply(
+            rest.quaternion
+        );
+
+
+    // Camera forward, expressed in the joint's local frame.
+    const camDir =
+        new THREE.Vector3(0, 0, 1);
+
+    camera.getWorldQuaternion(
+        getSpreadHelper()
+    );
+
+    camDir.applyQuaternion(
+        getSpreadHelper()
+    );
+
+
+    const axis =
+        camDir.applyQuaternion(
+            restWorldQ.clone().invert()
+        );
+
+
+    if (
+        axis.lengthSq() < 1e-6
+    ) {
+
+        return;
+    }
+
+
+    axis.normalize();
+
+
+    const q =
+        new THREE.Quaternion()
+            .setFromAxisAngle(
+                axis,
+                angle
+            );
+
+
+    // Compose OVER the curl already applied by bendFinger:
+    // spread is applied first (rest frame), then curl.
+    const cur =
+        bone.quaternion.clone();
+
+
+    bone.quaternion.copy(
+        rest.quaternion
+    );
+
+
+    bone.quaternion.multiply(
+        q
+    );
+
+
+    const rel =
+        rest.quaternion.clone().invert().multiply(
+            cur
+        );
+
+
+    bone.quaternion.multiply(
+        rel
+    );
+}
+
+/* =========================================================
    APPLY HAND POSE (FBX or Procedural)
    ========================================================= */
 
@@ -1935,18 +2094,14 @@ function applyHandPose(side, pose, progress) {
             isThumb: true,
             thumbOpp: spec.thumbOpp
         });
-        bendFinger(remyBones.rightIndex, spec.curl.index, progress, {
-            spread: spec.spread.index || 0
-        });
-        bendFinger(remyBones.rightMiddle, spec.curl.middle, progress, {
-            spread: spec.spread.middle || 0
-        });
-        bendFinger(remyBones.rightRing, spec.curl.ring, progress, {
-            spread: spec.spread.ring || 0
-        });
-        bendFinger(remyBones.rightPinky, spec.curl.pinky, progress, {
-            spread: spec.spread.pinky || 0
-        });
+        bendFinger(remyBones.rightIndex, spec.curl.index, progress, {});
+        bendFinger(remyBones.rightMiddle, spec.curl.middle, progress, {});
+        bendFinger(remyBones.rightRing, spec.curl.ring, progress, {});
+        bendFinger(remyBones.rightPinky, spec.curl.pinky, progress, {});
+        spreadFinger(remyBones.rightIndex, spec.spread.index || 0, progress);
+        spreadFinger(remyBones.rightMiddle, spec.spread.middle || 0, progress);
+        spreadFinger(remyBones.rightRing, spec.spread.ring || 0, progress);
+        spreadFinger(remyBones.rightPinky, spec.spread.pinky || 0, progress);
     }
 }
 
@@ -2021,7 +2176,7 @@ const SIGN_POSES = {
 
     // E: fingers curled down toward the thumb, thumb across.
     E: {
-        curl: { thumb: 0.70, index: 0.62, middle: 0.62, ring: 0.62, pinky: 0.62 },
+        curl: { thumb: 0.70, index: 0.55, middle: 0.55, ring: 0.55, pinky: 0.55 },
         thumbOpp: 0.80,
         wrist: [-0.9, 0, 0]
     },
@@ -2120,7 +2275,7 @@ const SIGN_POSES = {
     Q: {
         curl: { thumb: 0.15, index: 0.05, middle: 1, ring: 1, pinky: 1 },
         thumbOpp: 0.15,
-        wrist: [-0.2, -1.3, -0.8]
+        wrist: [-0.2, 0, -1.0]
     },
 
 
