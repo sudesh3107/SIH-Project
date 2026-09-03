@@ -1,363 +1,3797 @@
-var scene, camera, renderer, controls;
-var rightHand = null, leftHand = null;
-var bodyGroup = null;
-var particleSystem = null;
-var currentPose = null;
-var animating = false;
-var animProgress = 0;
-var targetPose = null;
-var animFrameId = null;
-var cameraAngle = 0;
-var cameraDistance = 4.2;
-var cameraTargetY = 0.85;
-var isDragging = false;
-var lastMouseX = 0;
-var lastMouseY = 0;
+/* =========================================================
+   EDUBRIDGE
+   REMY 3D SIGN LANGUAGE AVATAR
+   FULL VERSION
+   T-POSE -> SIGNING POSITION -> FINGER ANIMATION
+   ========================================================= */
+
+
+/* =========================================================
+   GLOBALS
+   ========================================================= */
+
+let scene = null;
+let camera = null;
+let renderer = null;
+let avatar = null;
+
+let clock = null;
+let animationFrame = null;
+
+let mixer = null;
+let currentAction = null;
+
+let remyLoaded = false;
+
+
+/* =========================================================
+   REMY BONES
+   ========================================================= */
+
+const remyBones = {
+
+    rightShoulder: null,
+    rightArm: null,
+    rightForeArm: null,
+    rightHand: null,
+
+    leftShoulder: null,
+    leftArm: null,
+    leftForeArm: null,
+    leftHand: null,
+
+    rightThumb: [],
+    rightIndex: [],
+    rightMiddle: [],
+    rightRing: [],
+    rightPinky: [],
+
+    leftThumb: [],
+    leftIndex: [],
+    leftMiddle: [],
+    leftRing: [],
+    leftPinky: []
+};
+
+
+/* =========================================================
+   REST POSE
+   ========================================================= */
+
+const restPose = new Map();
+
+
+/* =========================================================
+   CURRENT SIGN
+   ========================================================= */
+
+let currentSignKey = "A";
+
+let currentSignPose = null;
+
+
+/* =========================================================
+   SIGN ANIMATION
+   ========================================================= */
+
+const signAnimation = {
+
+    active: false,
+
+    startTime: 0,
+
+    duration: 1000,
+
+    pose: null
+};
+
+
+/* =========================================================
+   AUTOMATIC TEST
+   ========================================================= */
+
+const handTest = {
+
+    active: false,
+
+    startTime: 0,
+
+    duration: 5000
+};
+
+
+/* =========================================================
+   MODEL
+   ========================================================= */
+
+const REMY_PATH =
+    "./models/Remy.fbx";
+
+const TARGET_MODEL_HEIGHT =
+    3.0;
+
+
+/* =========================================================
+   CAMERA
+   ========================================================= */
+
+let cameraAngle = 0;
+
+let cameraDistance = 5;
+
+let cameraHeight = 1.55;
+
+const cameraTarget =
+    new THREE.Vector3(
+        0,
+        1.5,
+        0
+    );
+
+
+/* =========================================================
+   EASING
+   ========================================================= */
+
+function easeInOut(t) {
+
+    t = Math.max(
+        0,
+        Math.min(1, t)
+    );
+
+    if (t < 0.5) {
+
+        return 2 * t * t;
+    }
+
+    return 1 -
+        Math.pow(
+            -2 * t + 2,
+            2
+        ) / 2;
+}
+
+
+/* =========================================================
+   INIT
+   ========================================================= */
 
 function init() {
-  var container = document.getElementById('avatar-container');
-  if (!container) return;
-  var w = container.clientWidth || 600;
-  var h = container.clientHeight || 500;
 
-  scene = new THREE.Scene();
-  scene.background = new THREE.Color(0xf0f4ff);
-  scene.fog = new THREE.Fog(0xf0f4ff, 6, 14);
+    console.log(
+        "========================================"
+    );
 
-  camera = new THREE.PerspectiveCamera(40, w / h, 0.1, 100);
-  updateCameraPosition();
+    console.log(
+        "EDUBRIDGE REMY AVATAR"
+    );
 
-  renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
-  renderer.setSize(w, h);
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-  renderer.shadowMap.enabled = true;
-  renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-  renderer.toneMapping = THREE.ACESFilmicToneMapping;
-  renderer.toneMappingExposure = 1.2;
-  container.appendChild(renderer.domElement);
+    console.log(
+        "T-POSE ANIMATION VERSION"
+    );
 
-  controls = {
-    update: function() {
-      var targetX = Math.sin(cameraAngle) * cameraDistance;
-      var targetZ = Math.cos(cameraAngle) * cameraDistance;
-      camera.position.x = targetX;
-      camera.position.z = targetZ;
-      camera.position.y = 1.0;
-      camera.lookAt(0, cameraTargetY, 0);
+    console.log(
+        "========================================"
+    );
+
+
+    const container =
+        document.getElementById(
+            "avatar-container"
+        );
+
+
+    if (!container) {
+
+        console.error(
+            "avatar-container not found"
+        );
+
+        return;
     }
-  };
 
-  var ambient = new THREE.AmbientLight(0xffffff, 0.6);
-  scene.add(ambient);
-  var dirLight = new THREE.DirectionalLight(0xffffff, 1.0);
-  dirLight.position.set(3, 6, 4);
-  dirLight.castShadow = true;
-  dirLight.shadow.mapSize.set(1024, 1024);
-  scene.add(dirLight);
-  var fillLight = new THREE.DirectionalLight(0x818cf8, 0.4);
-  fillLight.position.set(-3, 2, 2);
-  scene.add(fillLight);
 
-  var groundGeo = new THREE.CircleGeometry(3, 64);
-  var groundMat = new THREE.MeshStandardMaterial({ color: 0xdbeafe, roughness: 0.8, metalness: 0.0 });
-  var ground = new THREE.Mesh(groundGeo, groundMat);
-  ground.rotation.x = -Math.PI / 2;
-  ground.position.y = -0.01;
-  ground.receiveShadow = true;
-  scene.add(ground);
+    container.innerHTML = "";
 
-  bodyGroup = new THREE.Group();
-  scene.add(bodyGroup);
-  buildAvatar();
-  createParticles();
 
-  setupMouseControls(container);
+    container.style.position =
+        "relative";
 
-  var ro = new ResizeObserver(function() {
-    var w = container.clientWidth;
-    var h = container.clientHeight;
-    if (w > 0 && h > 0) {
-      camera.aspect = w / h;
-      camera.updateProjectionMatrix();
-      renderer.setSize(w, h);
-    }
-  });
-  ro.observe(container);
 
-  animate();
+    container.style.width =
+        "100%";
+
+
+    container.style.height =
+        "100%";
+
+
+    container.style.minHeight =
+        "500px";
+
+
+    container.style.overflow =
+        "hidden";
+
+
+    /* =====================================================
+       CLOCK
+       ===================================================== */
+
+    clock =
+        new THREE.Clock();
+
+
+    /* =====================================================
+       SCENE
+       ===================================================== */
+
+    scene =
+        new THREE.Scene();
+
+
+    scene.background =
+        new THREE.Color(
+            0xf1f5ff
+        );
+
+
+    /* =====================================================
+       CAMERA
+       ===================================================== */
+
+    const width =
+        container.clientWidth ||
+        600;
+
+
+    const height =
+        container.clientHeight ||
+        500;
+
+
+    camera =
+        new THREE.PerspectiveCamera(
+            32,
+            width / height,
+            0.1,
+            100
+        );
+
+
+    camera.position.set(
+        0,
+        cameraHeight,
+        cameraDistance
+    );
+
+
+    camera.lookAt(
+        cameraTarget
+    );
+
+
+    /* =====================================================
+       RENDERER
+       ===================================================== */
+
+    renderer =
+        new THREE.WebGLRenderer({
+
+            antialias: true,
+
+            alpha: true,
+
+            powerPreference:
+                "high-performance"
+        });
+
+
+    renderer.setPixelRatio(
+        Math.min(
+            window.devicePixelRatio || 1,
+            2
+        )
+    );
+
+
+    renderer.setSize(
+        width,
+        height
+    );
+
+
+    renderer.outputColorSpace =
+        THREE.SRGBColorSpace;
+
+
+    renderer.toneMapping =
+        THREE.ACESFilmicToneMapping;
+
+
+    renderer.toneMappingExposure =
+        1.05;
+
+
+    renderer.shadowMap.enabled =
+        true;
+
+
+    renderer.shadowMap.type =
+        THREE.PCFSoftShadowMap;
+
+
+    container.appendChild(
+        renderer.domElement
+    );
+
+
+    /* =====================================================
+       LIGHTING
+       ===================================================== */
+
+    createLighting();
+
+
+    /* =====================================================
+       FLOOR
+       ===================================================== */
+
+    createFloor();
+
+
+    /* =====================================================
+       CONTROLS
+       ===================================================== */
+
+    setupControls(
+        renderer.domElement
+    );
+
+
+    /* =====================================================
+       RESIZE
+       ===================================================== */
+
+    window.addEventListener(
+        "resize",
+        resizeAvatar
+    );
+
+
+    /* =====================================================
+       LOAD REMY
+       ===================================================== */
+
+    loadRemy();
+
+
+    /* =====================================================
+       LOOP
+       ===================================================== */
+
+    animate();
 }
 
-function updateCameraPosition() {
-  var targetX = Math.sin(cameraAngle) * cameraDistance;
-  var targetZ = Math.cos(cameraAngle) * cameraDistance;
-  camera.position.set(targetX, 1.0, targetZ);
-}
 
-function setupMouseControls(container) {
-  var canvas = renderer.domElement;
-  canvas.addEventListener('mousedown', function(e) {
-    isDragging = true;
-    lastMouseX = e.clientX;
-    lastMouseY = e.clientY;
-  });
-  canvas.addEventListener('mousemove', function(e) {
-    if (!isDragging) return;
-    var dx = e.clientX - lastMouseX;
-    var dy = e.clientY - lastMouseY;
-    cameraAngle -= dx * 0.01;
-    cameraTargetY = Math.max(0.3, Math.min(1.5, cameraTargetY - dy * 0.005));
-    lastMouseX = e.clientX;
-    lastMouseY = e.clientY;
-  });
-  canvas.addEventListener('mouseup', function() { isDragging = false; });
-  canvas.addEventListener('mouseleave', function() { isDragging = false; });
-  canvas.addEventListener('wheel', function(e) {
-    cameraDistance = Math.max(2, Math.min(8, cameraDistance + e.deltaY * 0.005));
-    e.preventDefault();
-  }, { passive: false });
+/* =========================================================
+   LOAD REMY
+   ========================================================= */
 
-  canvas.addEventListener('touchstart', function(e) {
-    if (e.touches.length === 1) {
-      isDragging = true;
-      lastMouseX = e.touches[0].clientX;
-      lastMouseY = e.touches[0].clientY;
-    }
-  });
-  canvas.addEventListener('touchmove', function(e) {
-    if (!isDragging || e.touches.length !== 1) return;
-    var dx = e.touches[0].clientX - lastMouseX;
-    var dy = e.touches[0].clientY - lastMouseY;
-    cameraAngle -= dx * 0.01;
-    cameraTargetY = Math.max(0.3, Math.min(1.5, cameraTargetY - dy * 0.005));
-    lastMouseX = e.touches[0].clientX;
-    lastMouseY = e.touches[0].clientY;
-  });
-  canvas.addEventListener('touchend', function() { isDragging = false; });
-}
+function loadRemy() {
 
-function buildAvatar() {
-  var skinMat = new THREE.MeshStandardMaterial({ color: 0xf5d0b9, roughness: 0.5, metalness: 0.0 });
-  var skinLight = new THREE.MeshStandardMaterial({ color: 0xffe0c8, roughness: 0.5, metalness: 0.0 });
-  var jointMat = new THREE.MeshStandardMaterial({ color: 0xd4a574, roughness: 0.4, metalness: 0.0 });
-  var eyeMat = new THREE.MeshStandardMaterial({ color: 0x1e1b4b, roughness: 0.3 });
-  var hairMat = new THREE.MeshStandardMaterial({ color: 0x44403c, roughness: 0.8 });
-  var clothDark = new THREE.MeshStandardMaterial({ color: 0x4338ca, roughness: 0.6, metalness: 0.1 });
+    console.log(
+        "Loading Remy.fbx..."
+    );
 
-  var head = new THREE.Mesh(new THREE.SphereGeometry(0.18, 32, 32), skinLight);
-  head.position.set(0, 2.2, 0); head.castShadow = true; bodyGroup.add(head);
 
-  var hair = new THREE.Mesh(new THREE.SphereGeometry(0.19, 32, 32, 0, Math.PI * 2, 0, Math.PI * 0.55), hairMat);
-  hair.position.set(0, 2.25, 0); bodyGroup.add(hair);
+    import(
+        "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/loaders/FBXLoader.js"
+    )
+    .then(
+        function(module) {
 
-  var eye = new THREE.Mesh(new THREE.SphereGeometry(0.03, 16, 16), eyeMat);
-  eye.position.set(-0.06, 2.22, 0.15); bodyGroup.add(eye);
-  var eye2 = new THREE.Mesh(new THREE.SphereGeometry(0.03, 16, 16), eyeMat);
-  eye2.position.set(0.06, 2.22, 0.15); bodyGroup.add(eye2);
+            console.log(
+                "FBXLoader loaded"
+            );
 
-  var neck = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.08, 0.12, 16), skinMat);
-  neck.position.set(0, 2.04, 0); bodyGroup.add(neck);
 
-  var torso = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.7, 0.28), clothDark);
-  torso.position.set(0, 1.6, 0); torso.castShadow = true; bodyGroup.add(torso);
+            const FBXLoader =
+                module.FBXLoader;
 
-  var shoulderL = new THREE.Mesh(new THREE.SphereGeometry(0.09, 16, 16), skinLight);
-  shoulderL.position.set(-0.32, 1.5, 0); bodyGroup.add(shoulderL);
-  var shoulderR = new THREE.Mesh(new THREE.SphereGeometry(0.09, 16, 16), skinLight);
-  shoulderR.position.set(0.32, 1.5, 0); bodyGroup.add(shoulderR);
 
-  leftHand = createHandGroup(-0.32, 1.5, true);
-  rightHand = createHandGroup(0.32, 1.5, false);
+            const loader =
+                new FBXLoader();
 
-  currentPose = getDefaultPose();
-  applyPoseToHand(rightHand, currentPose);
-  applyPoseToHand(leftHand, currentPose);
-}
 
-function createHandGroup(x, y, isLeft) {
-  var group = new THREE.Group();
-  group.position.set(x, y, 0);
-  bodyGroup.add(group);
-  var skinMat = new THREE.MeshStandardMaterial({ color: 0xf5d0b9, roughness: 0.5, metalness: 0.0 });
-  var palmMat = new THREE.MeshStandardMaterial({ color: 0xf5d0b9, roughness: 0.5, metalness: 0.0 });
+            loader.load(
 
-  var palm = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.18, 0.07), palmMat);
-  palm.position.y = 0.09; palm.castShadow = true;
-  group.add(palm);
+                REMY_PATH,
 
-  var fingerDefs = [
-    { name: 'thumb', pos: [0.06, 0.12, 0], length: 0.12, width: 0.04, isThumb: true },
-    { name: 'index', pos: [0.04, 0.24, 0], length: 0.24, width: 0.045, isThumb: false },
-    { name: 'middle', pos: [0, 0.26, 0], length: 0.28, width: 0.05, isThumb: false },
-    { name: 'ring', pos: [-0.04, 0.24, 0], length: 0.25, width: 0.042, isThumb: false },
-    { name: 'pinky', pos: [-0.08, 0.2, 0], length: 0.2, width: 0.035, isThumb: false }
-  ];
 
-  fingerDefs.forEach(function(fd) {
-    var chain = buildFingerChain(fd);
-    chain.position.set(fd.pos[0], fd.pos[1], fd.pos[2]);
-    if (fd.name === 'thumb' && isLeft) chain.rotation.z = Math.PI;
-    group.add(chain);
-  });
+                function(model) {
 
-  group.userData.isLeft = isLeft;
-  return group;
-}
+                    onRemyLoaded(
+                        model
+                    );
+                },
 
-function buildFingerChain(fd) {
-  var skinMat = new THREE.MeshStandardMaterial({ color: 0xf5d0b9, roughness: 0.5, metalness: 0.0 });
-  var jointMat = new THREE.MeshStandardMaterial({ color: 0xd4a574, roughness: 0.4, metalness: 0.0 });
 
-  var segLengths = [fd.length * 0.35, fd.length * 0.35, fd.length * 0.3];
-  var segWidths = [fd.width, fd.width * 0.9, fd.width * 0.8];
-  var segments = [];
-  var currentGroup = null;
-  var root = new THREE.Group();
+                function(xhr) {
 
-  for (var i = 0; i < 3; i++) {
-    var segGroup = new THREE.Group();
-    var mesh = new THREE.Mesh(new THREE.BoxGeometry(segWidths[i], segLengths[i], segWidths[i]), skinMat);
-    mesh.position.y = -segLengths[i] / 2; mesh.castShadow = true;
-    segGroup.add(mesh);
+                    if (
+                        xhr.total
+                    ) {
 
-    var joint = new THREE.Mesh(new THREE.SphereGeometry(segWidths[i] * 0.55, 8, 8), jointMat);
-    joint.position.y = 0; segGroup.add(joint);
+                        const percent =
+                            Math.round(
+                                (
+                                    xhr.loaded /
+                                    xhr.total
+                                ) * 100
+                            );
 
-    if (currentGroup === null) { root.add(segGroup); }
-    else { currentGroup.add(segGroup); segGroup.position.y = segLengths[i - 1]; }
 
-    segments.push(segGroup);
-    currentGroup = segGroup;
-  }
+                        console.log(
+                            "Remy:",
+                            percent + "%"
+                        );
+                    }
+                },
 
-  for (var i = 0; i < segments.length; i++) {
-    segments[i].userData = { fingerIndex: i, fingerName: fd.name, isThumb: fd.isThumb };
-    segments[i].userData.nextSeg = (i < segments.length - 1) ? segments[i + 1] : null;
-  }
 
-  return root;
-}
+                function(error) {
 
-function getDefaultPose() {
-  return {
-    thumb: { cx: 0, mx: 0, ix: 0 },
-    index: { mx: 0, px: 0, dx: 0 },
-    middle: { mx: 0, px: 0, dx: 0 },
-    ring: { mx: 0, px: 0, dx: 0 },
-    pinky: { mx: 0, px: 0, dx: 0 }
-  };
-}
+                    console.error(
+                        "REMY LOAD ERROR",
+                        error
+                    );
 
-function applyPoseToHand(hand, pose) {
-  if (!hand) return;
-  hand.children.forEach(function(chain) {
-    if (!chain.children) return;
-    chain.children.forEach(function(seg) {
-      if (!seg.userData || !seg.userData.fingerName) return;
-      var fn = seg.userData.fingerName;
-      if (!pose[fn]) return;
-      var fp = pose[fn];
-      if (seg.userData.isThumb) {
-        seg.rotation.z = (fp.cx || 0) * Math.PI / 180;
-        seg.rotation.x = (fp.mx || 0) * Math.PI / 180;
-        var next = seg.userData.nextSeg;
-        if (next) next.rotation.x = (fp.ix || 0) * Math.PI / 180;
-      } else {
-        var idx = seg.userData.fingerIndex;
-        var angles = ['mx', 'px', 'dx'];
-        if (idx < angles.length) seg.rotation.x = (fp[angles[idx]] || 0) * Math.PI / 180;
-      }
-    });
-  });
-}
 
-function animateHandToPose(pose) {
-  if (!pose) return;
-  animating = true;
-  animProgress = 0;
-  targetPose = JSON.parse(JSON.stringify(pose));
-  if (!currentPose) currentPose = getDefaultPose();
-}
-
-function createParticles() {
-  var count = 50;
-  var geometry = new THREE.BufferGeometry();
-  var positions = new Float32Array(count * 3);
-  for (var i = 0; i < count; i++) {
-    positions[i * 3] = (Math.random() - 0.5) * 6;
-    positions[i * 3 + 1] = Math.random() * 4;
-    positions[i * 3 + 2] = (Math.random() - 0.5) * 6;
-  }
-  geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
-  var material = new THREE.PointsMaterial({ color: 0x818cf8, size: 0.02, transparent: true, opacity: 0.4 });
-  particleSystem = new THREE.Points(geometry, material);
-  scene.add(particleSystem);
-}
-
-function animate() {
-  animFrameId = requestAnimationFrame(animate);
-
-  if (animating && targetPose) {
-    animProgress += 0.03;
-    if (animProgress >= 1) {
-      animProgress = 1; animating = false;
-      currentPose = JSON.parse(JSON.stringify(targetPose));
-      applyPoseToHand(rightHand, currentPose);
-      applyPoseToHand(leftHand, currentPose);
-    } else {
-      var t = easeInOutCubic(animProgress);
-      var interp = {};
-      for (var finger in targetPose) {
-        if (!currentPose[finger]) continue;
-        interp[finger] = {};
-        for (var joint in targetPose[finger]) {
-          interp[finger][joint] = (currentPose[finger][joint] || 0) + ((targetPose[finger][joint] || 0) - (currentPose[finger][joint] || 0)) * t;
+                    showError(
+                        "Unable to load Remy.fbx"
+                    );
+                }
+            );
         }
-      }
-      applyPoseToHand(rightHand, interp);
-      applyPoseToHand(leftHand, interp);
-    }
-  }
+    )
+    .catch(
+        function(error) {
 
-  if (particleSystem) {
-    particleSystem.rotation.y += 0.001;
-    var pos = particleSystem.geometry.attributes.position.array;
-    for (var i = 0; i < pos.length; i += 3) { pos[i + 1] += 0.002; if (pos[i + 1] > 4) pos[i + 1] = 0; }
-    particleSystem.geometry.attributes.position.needsUpdate = true;
-  }
+            console.error(
+                "FBXLoader import error:",
+                error
+            );
 
-  controls.update();
-  renderer.render(scene, camera);
+
+            showError(
+                "FBXLoader failed."
+            );
+        }
+    );
 }
 
-function easeInOutCubic(t) { return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2; }
+
+/* =========================================================
+   REMY LOADED
+   ========================================================= */
+
+function onRemyLoaded(model) {
+
+    console.log(
+        "========================================"
+    );
+
+    console.log(
+        "REMY LOADED SUCCESSFULLY"
+    );
+
+    console.log(
+        "========================================"
+    );
+
+
+    avatar =
+        model;
+
+
+    remyLoaded =
+        true;
+
+
+    normalizeModel(
+        avatar
+    );
+
+
+    setupMaterials(
+        avatar
+    );
+
+
+    centerModel(
+        avatar
+    );
+
+
+    scene.add(
+        avatar
+    );
+
+
+    inspectSkeleton(
+        avatar
+    );
+
+
+    buildBoneMap(
+        avatar
+    );
+
+
+    saveRestPose(
+        avatar
+    );
+
+
+    setupFBXAnimations(
+        avatar
+    );
+
+
+    setupCameraForModel(
+        avatar
+    );
+
+
+    printBoneSummary();
+
+
+    console.log(
+        "========================================"
+    );
+
+    console.log(
+        "REMY READY"
+    );
+
+    console.log(
+        "========================================"
+    );
+
+
+    /*
+       Automatic T-pose test.
+    */
+
+    setTimeout(
+        function() {
+
+            startFullBodyTest();
+
+        },
+        1200
+    );
+}
+
+
+/* =========================================================
+   NORMALIZE
+   ========================================================= */
+
+function normalizeModel(model) {
+
+    const box =
+        new THREE.Box3()
+            .setFromObject(
+                model
+            );
+
+
+    const size =
+        box.getSize(
+            new THREE.Vector3()
+        );
+
+
+    if (
+        size.y <= 0
+    ) {
+
+        return;
+    }
+
+
+    const scale =
+        TARGET_MODEL_HEIGHT /
+        size.y;
+
+
+    model.scale.set(
+        scale,
+        scale,
+        scale
+    );
+}
+
+
+/* =========================================================
+   MATERIALS
+   ========================================================= */
+
+function setupMaterials(model) {
+
+    model.traverse(
+        function(object) {
+
+            if (
+                !object.isMesh
+            ) {
+
+                return;
+            }
+
+
+            object.castShadow =
+                true;
+
+
+            object.receiveShadow =
+                true;
+
+
+            if (
+                !object.material
+            ) {
+
+                return;
+            }
+
+
+            const materials =
+                Array.isArray(
+                    object.material
+                )
+                    ? object.material
+                    : [
+                        object.material
+                    ];
+
+
+            materials.forEach(
+                function(material) {
+
+                    material.side =
+                        THREE.DoubleSide;
+
+
+                    material.needsUpdate =
+                        true;
+
+
+                    if (
+                        material.map
+                    ) {
+
+                        material.map.colorSpace =
+                            THREE.SRGBColorSpace;
+                    }
+                }
+            );
+        }
+    );
+}
+
+
+/* =========================================================
+   CENTER MODEL
+   ========================================================= */
+
+function centerModel(model) {
+
+    const box =
+        new THREE.Box3()
+            .setFromObject(
+                model
+            );
+
+
+    const center =
+        box.getCenter(
+            new THREE.Vector3()
+        );
+
+
+    model.position.x -=
+        center.x;
+
+
+    model.position.z -=
+        center.z;
+
+
+    model.position.y -=
+        box.min.y;
+}
+
+
+/* =========================================================
+   LIGHTING
+   ========================================================= */
+
+function createLighting() {
+
+    const hemisphere =
+        new THREE.HemisphereLight(
+            0xffffff,
+            0xb8c1d9,
+            2
+        );
+
+
+    scene.add(
+        hemisphere
+    );
+
+
+    const key =
+        new THREE.DirectionalLight(
+            0xffffff,
+            2.8
+        );
+
+
+    key.position.set(
+        4,
+        7,
+        6
+    );
+
+
+    key.castShadow =
+        true;
+
+
+    key.shadow.mapSize.width =
+        2048;
+
+
+    key.shadow.mapSize.height =
+        2048;
+
+
+    scene.add(
+        key
+    );
+
+
+    const fill =
+        new THREE.DirectionalLight(
+            0xffffff,
+            0.9
+        );
+
+
+    fill.position.set(
+        -5,
+        4,
+        4
+    );
+
+
+    scene.add(
+        fill
+    );
+
+
+    const back =
+        new THREE.DirectionalLight(
+            0xffffff,
+            0.9
+        );
+
+
+    back.position.set(
+        0,
+        5,
+        -6
+    );
+
+
+    scene.add(
+        back
+    );
+}
+
+
+/* =========================================================
+   FLOOR
+   ========================================================= */
+
+function createFloor() {
+
+    const geometry =
+        new THREE.CircleGeometry(
+            3.5,
+            64
+        );
+
+
+    const material =
+        new THREE.MeshStandardMaterial({
+
+            color:
+                0xd8e0ef,
+
+            roughness:
+                0.9,
+
+            metalness:
+                0
+        });
+
+
+    const floor =
+        new THREE.Mesh(
+            geometry,
+            material
+        );
+
+
+    floor.rotation.x =
+        -Math.PI / 2;
+
+
+    floor.position.y =
+        -0.01;
+
+
+    floor.receiveShadow =
+        true;
+
+
+    scene.add(
+        floor
+    );
+}
+
+
+/* =========================================================
+   INSPECT SKELETON
+   ========================================================= */
+
+function inspectSkeleton(model) {
+
+    const bonesFound = [];
+
+
+    model.traverse(
+        function(object) {
+
+            if (
+                object.isBone
+            ) {
+
+                bonesFound.push(
+                    object
+                );
+            }
+        }
+    );
+
+
+    console.log(
+        "========================================"
+    );
+
+
+    console.log(
+        "REMY SKELETON"
+    );
+
+
+    console.log(
+        "TOTAL BONES:",
+        bonesFound.length
+    );
+
+
+    console.log(
+        "========================================"
+    );
+
+
+    bonesFound.forEach(
+        function(bone, index) {
+
+            console.log(
+                index +
+                " : " +
+                bone.name
+            );
+        }
+    );
+}
+
+
+/* =========================================================
+   FIND BONE
+   ========================================================= */
+
+function findBone(
+    model,
+    name
+) {
+
+    let result =
+        null;
+
+
+    model.traverse(
+        function(object) {
+
+            if (
+                result
+            ) {
+
+                return;
+            }
+
+
+            if (
+                object.isBone &&
+                object.name.toLowerCase() ===
+                name.toLowerCase()
+            ) {
+
+                result =
+                    object;
+            }
+        }
+    );
+
+
+    return result;
+}
+
+
+/* =========================================================
+   FIND FINGER
+   ========================================================= */
+
+function findFinger(
+    model,
+    side,
+    finger
+) {
+
+    const chain = [];
+
+
+    const prefix =
+        side === "right"
+            ? "mixamorig:RightHand"
+            : "mixamorig:LeftHand";
+
+
+    for (
+        let i = 1;
+        i <= 4;
+        i++
+    ) {
+
+        const name =
+            prefix +
+            finger +
+            i;
+
+
+        const bone =
+            findBone(
+                model,
+                name
+            );
+
+
+        if (
+            bone
+        ) {
+
+            chain.push(
+                bone
+            );
+        }
+    }
+
+
+    return chain;
+}
+
+
+/* =========================================================
+   BUILD BONE MAP
+   ========================================================= */
+
+function buildBoneMap(model) {
+
+    /* -----------------------------------------------------
+       RIGHT ARM
+       ----------------------------------------------------- */
+
+    remyBones.rightShoulder =
+        findBone(
+            model,
+            "mixamorig:RightShoulder"
+        );
+
+
+    remyBones.rightArm =
+        findBone(
+            model,
+            "mixamorig:RightArm"
+        );
+
+
+    remyBones.rightForeArm =
+        findBone(
+            model,
+            "mixamorig:RightForeArm"
+        );
+
+
+    remyBones.rightHand =
+        findBone(
+            model,
+            "mixamorig:RightHand"
+        );
+
+
+    /* -----------------------------------------------------
+       LEFT ARM
+       ----------------------------------------------------- */
+
+    remyBones.leftShoulder =
+        findBone(
+            model,
+            "mixamorig:LeftShoulder"
+        );
+
+
+    remyBones.leftArm =
+        findBone(
+            model,
+            "mixamorig:LeftArm"
+        );
+
+
+    remyBones.leftForeArm =
+        findBone(
+            model,
+            "mixamorig:LeftForeArm"
+        );
+
+
+    remyBones.leftHand =
+        findBone(
+            model,
+            "mixamorig:LeftHand"
+        );
+
+
+    /* -----------------------------------------------------
+       RIGHT FINGERS
+       ----------------------------------------------------- */
+
+    remyBones.rightThumb =
+        findFinger(
+            model,
+            "right",
+            "Thumb"
+        );
+
+
+    remyBones.rightIndex =
+        findFinger(
+            model,
+            "right",
+            "Index"
+        );
+
+
+    remyBones.rightMiddle =
+        findFinger(
+            model,
+            "right",
+            "Middle"
+        );
+
+
+    remyBones.rightRing =
+        findFinger(
+            model,
+            "right",
+            "Ring"
+        );
+
+
+    remyBones.rightPinky =
+        findFinger(
+            model,
+            "right",
+            "Pinky"
+        );
+
+
+    /* -----------------------------------------------------
+       LEFT FINGERS
+       ----------------------------------------------------- */
+
+    remyBones.leftThumb =
+        findFinger(
+            model,
+            "left",
+            "Thumb"
+        );
+
+
+    remyBones.leftIndex =
+        findFinger(
+            model,
+            "left",
+            "Index"
+        );
+
+
+    remyBones.leftMiddle =
+        findFinger(
+            model,
+            "left",
+            "Middle"
+        );
+
+
+    remyBones.leftRing =
+        findFinger(
+            model,
+            "left",
+            "Ring"
+        );
+
+
+    remyBones.leftPinky =
+        findFinger(
+            model,
+            "left",
+            "Pinky"
+        );
+}
+
+
+/* =========================================================
+   SAVE REST POSE
+   ========================================================= */
+
+function saveRestPose(model) {
+
+    restPose.clear();
+
+
+    model.traverse(
+        function(object) {
+
+            if (
+                object.isBone
+            ) {
+
+                restPose.set(
+                    object.uuid,
+                    {
+                        quaternion:
+                            object.quaternion.clone(),
+
+                        rotation:
+                            object.rotation.clone()
+                    }
+                );
+            }
+        }
+    );
+
+
+    console.log(
+        "Original T-pose saved."
+    );
+}
+
+
+/* =========================================================
+   RESTORE BONE
+   ========================================================= */
+
+function restoreBone(bone) {
+
+    if (
+        !bone
+    ) {
+
+        return;
+    }
+
+
+    const rest =
+        restPose.get(
+            bone.uuid
+        );
+
+
+    if (
+        !rest
+    ) {
+
+        return;
+    }
+
+
+    bone.quaternion.copy(
+        rest.quaternion
+    );
+}
+
+
+/* =========================================================
+   RESTORE FINGER
+   ========================================================= */
+
+function restoreFinger(finger) {
+
+    if (
+        !finger
+    ) {
+
+        return;
+    }
+
+
+    finger.forEach(
+        function(bone) {
+
+            restoreBone(
+                bone
+            );
+        }
+    );
+}
+
+
+/* =========================================================
+   RESTORE COMPLETE BODY
+   ========================================================= */
+
+function restoreBody() {
+
+    restoreBone(
+        remyBones.rightArm
+    );
+
+    restoreBone(
+        remyBones.rightForeArm
+    );
+
+    restoreBone(
+        remyBones.rightHand
+    );
+
+
+    restoreBone(
+        remyBones.leftArm
+    );
+
+    restoreBone(
+        remyBones.leftForeArm
+    );
+
+    restoreBone(
+        remyBones.leftHand
+    );
+
+
+    restoreFinger(
+        remyBones.rightThumb
+    );
+
+    restoreFinger(
+        remyBones.rightIndex
+    );
+
+    restoreFinger(
+        remyBones.rightMiddle
+    );
+
+    restoreFinger(
+        remyBones.rightRing
+    );
+
+    restoreFinger(
+        remyBones.rightPinky
+    );
+
+
+    restoreFinger(
+        remyBones.leftThumb
+    );
+
+    restoreFinger(
+        remyBones.leftIndex
+    );
+
+    restoreFinger(
+        remyBones.leftMiddle
+    );
+
+    restoreFinger(
+        remyBones.leftRing
+    );
+
+    restoreFinger(
+        remyBones.leftPinky
+    );
+}
+
+
+/* =========================================================
+   RESTORE HANDS
+   ========================================================= */
+
+function restoreHands() {
+
+    restoreFinger(
+        remyBones.rightThumb
+    );
+
+    restoreFinger(
+        remyBones.rightIndex
+    );
+
+    restoreFinger(
+        remyBones.rightMiddle
+    );
+
+    restoreFinger(
+        remyBones.rightRing
+    );
+
+    restoreFinger(
+        remyBones.rightPinky
+    );
+
+
+    restoreFinger(
+        remyBones.leftThumb
+    );
+
+    restoreFinger(
+        remyBones.leftIndex
+    );
+
+    restoreFinger(
+        remyBones.leftMiddle
+    );
+
+    restoreFinger(
+        remyBones.leftRing
+    );
+
+    restoreFinger(
+        remyBones.leftPinky
+    );
+}
+
+
+/* =========================================================
+   RELATIVE BONE ROTATION
+   ========================================================= */
+
+function rotateBoneRelative(
+    bone,
+    x,
+    y,
+    z,
+    progress
+) {
+
+    if (
+        !bone
+    ) {
+
+        return;
+    }
+
+
+    const rest =
+        restPose.get(
+            bone.uuid
+        );
+
+
+    if (
+        !rest
+    ) {
+
+        return;
+    }
+
+
+    const eased =
+        easeInOut(
+            progress
+        );
+
+
+    const q =
+        new THREE.Quaternion();
+
+
+    const euler =
+        new THREE.Euler(
+            x * eased,
+            y * eased,
+            z * eased,
+            "XYZ"
+        );
+
+
+    q.setFromEuler(
+        euler
+    );
+
+
+    bone.quaternion.copy(
+        rest.quaternion
+    );
+
+
+    bone.quaternion.multiply(
+        q
+    );
+}
+
+
+/* =========================================================
+   SIGNING ARM
+   =========================================================
+
+   This is the important part.
+
+   T-pose:
+       arm horizontal
+
+   Signing:
+       arm comes down
+       forearm bends
+       hand comes forward
+
+   ========================================================= */
+
+function applySigningArm(
+    side,
+    progress
+) {
+
+    if (
+        side === "right"
+    ) {
+
+        /*
+           RIGHT UPPER ARM
+
+           Move the arm down from
+           the T-pose.
+        */
+
+        rotateBoneRelative(
+
+            remyBones.rightArm,
+
+            0.00,
+
+            0.25,
+
+            -1.15,
+
+            progress
+        );
+
+
+        /*
+           RIGHT FOREARM
+
+           Bend elbow.
+        */
+
+        rotateBoneRelative(
+
+            remyBones.rightForeArm,
+
+            0.15,
+
+            -0.35,
+
+            -0.55,
+
+            progress
+        );
+
+
+        /*
+           RIGHT HAND
+
+           Bring palm toward front.
+        */
+
+        rotateBoneRelative(
+
+            remyBones.rightHand,
+
+            -0.25,
+
+            0.25,
+
+            -0.15,
+
+            progress
+        );
+
+
+    } else {
+
+        /*
+           LEFT SIDE
+           kept mostly neutral.
+        */
+
+        rotateBoneRelative(
+
+            remyBones.leftArm,
+
+            0.00,
+
+            -0.10,
+
+            0.15,
+
+            progress
+        );
+
+
+        rotateBoneRelative(
+
+            remyBones.leftForeArm,
+
+            0.00,
+
+            0.00,
+
+            0.00,
+
+            progress
+        );
+
+
+        rotateBoneRelative(
+
+            remyBones.leftHand,
+
+            0.00,
+
+            0.00,
+
+            0.00,
+
+            progress
+        );
+    }
+}
+
+
+/* =========================================================
+   FINGER BEND
+   ========================================================= */
+
+function bendFinger(
+    finger,
+    amount,
+    progress
+) {
+
+    if (
+        !finger ||
+        finger.length === 0
+    ) {
+
+        return;
+    }
+
+
+    const eased =
+        easeInOut(
+            progress
+        );
+
+
+    finger.forEach(
+        function(bone, index) {
+
+            const rest =
+                restPose.get(
+                    bone.uuid
+                );
+
+
+            if (
+                !rest
+            ) {
+
+                return;
+            }
+
+
+            const strength =
+                1 -
+                index * 0.08;
+
+
+            const bend =
+                amount *
+                strength *
+                eased;
+
+
+            /*
+               Primary finger bend.
+            */
+
+            const q =
+                new THREE.Quaternion();
+
+
+            const euler =
+                new THREE.Euler(
+                    0,
+                    0,
+                    bend,
+                    "XYZ"
+                );
+
+
+            q.setFromEuler(
+                euler
+            );
+
+
+            bone.quaternion.copy(
+                rest.quaternion
+            );
+
+
+            bone.quaternion.multiply(
+                q
+            );
+        }
+    );
+}
+
+
+/* =========================================================
+   APPLY HAND POSE
+   ========================================================= */
+
+function applyHandPose(
+    side,
+    pose,
+    progress
+) {
+
+    if (
+        !pose
+    ) {
+
+        return;
+    }
+
+
+    if (
+        side === "right"
+    ) {
+
+        bendFinger(
+            remyBones.rightThumb,
+            pose.thumb || 0,
+            progress
+        );
+
+
+        bendFinger(
+            remyBones.rightIndex,
+            pose.index || 0,
+            progress
+        );
+
+
+        bendFinger(
+            remyBones.rightMiddle,
+            pose.middle || 0,
+            progress
+        );
+
+
+        bendFinger(
+            remyBones.rightRing,
+            pose.ring || 0,
+            progress
+        );
+
+
+        bendFinger(
+            remyBones.rightPinky,
+            pose.pinky || 0,
+            progress
+        );
+
+    } else {
+
+        bendFinger(
+            remyBones.leftThumb,
+            pose.thumb || 0,
+            progress
+        );
+
+
+        bendFinger(
+            remyBones.leftIndex,
+            pose.index || 0,
+            progress
+        );
+
+
+        bendFinger(
+            remyBones.leftMiddle,
+            pose.middle || 0,
+            progress
+        );
+
+
+        bendFinger(
+            remyBones.leftRing,
+            pose.ring || 0,
+            progress
+        );
+
+
+        bendFinger(
+            remyBones.leftPinky,
+            pose.pinky || 0,
+            progress
+        );
+    }
+}
+
+
+/* =========================================================
+   APPLY COMPLETE SIGN
+   ========================================================= */
+
+function applySignPose(
+    pose,
+    progress
+) {
+
+    /*
+       First bring the arm out of
+       the T-pose.
+    */
+
+    applySigningArm(
+        "right",
+        progress
+    );
+
+
+    /*
+       Then create hand shape.
+    */
+
+    if (
+        pose &&
+        pose.right
+    ) {
+
+        applyHandPose(
+            "right",
+            pose.right,
+            progress
+        );
+    }
+
+
+    /*
+       Left hand stays relaxed.
+    */
+
+    if (
+        pose &&
+        pose.left
+    ) {
+
+        applyHandPose(
+            "left",
+            pose.left,
+            progress
+        );
+    }
+}
+
+
+/* =========================================================
+   SIGN POSES
+   ========================================================= */
+
+const SIGN_POSES = {
+
+    A: {
+
+        right: {
+
+            thumb: -0.60,
+
+            index: -1.60,
+
+            middle: -1.60,
+
+            ring: -1.60,
+
+            pinky: -1.60
+        }
+    },
+
+
+    B: {
+
+        right: {
+
+            thumb: -0.40,
+
+            index: 0,
+
+            middle: 0,
+
+            ring: 0,
+
+            pinky: 0
+        }
+    },
+
+
+    C: {
+
+        right: {
+
+            thumb: -0.50,
+
+            index: -0.65,
+
+            middle: -0.65,
+
+            ring: -0.65,
+
+            pinky: -0.65
+        }
+    },
+
+
+    D: {
+
+        right: {
+
+            thumb: -0.35,
+
+            index: 0,
+
+            middle: -1.60,
+
+            ring: -1.60,
+
+            pinky: -1.60
+        }
+    },
+
+
+    E: {
+
+        right: {
+
+            thumb: -0.60,
+
+            index: -1.20,
+
+            middle: -1.20,
+
+            ring: -1.20,
+
+            pinky: -1.20
+        }
+    },
+
+
+    F: {
+
+        right: {
+
+            thumb: -0.30,
+
+            index: -0.40,
+
+            middle: 0,
+
+            ring: 0,
+
+            pinky: 0
+        }
+    },
+
+
+    G: {
+
+        right: {
+
+            thumb: -0.30,
+
+            index: 0,
+
+            middle: -1.50,
+
+            ring: -1.50,
+
+            pinky: -1.50
+        }
+    },
+
+
+    H: {
+
+        right: {
+
+            thumb: -0.30,
+
+            index: 0,
+
+            middle: 0,
+
+            ring: -1.50,
+
+            pinky: -1.50
+        }
+    },
+
+
+    I: {
+
+        right: {
+
+            thumb: -0.35,
+
+            index: -1.50,
+
+            middle: -1.50,
+
+            ring: -1.50,
+
+            pinky: 0
+        }
+    },
+
+
+    J: {
+
+        right: {
+
+            thumb: -0.35,
+
+            index: -1.50,
+
+            middle: -1.50,
+
+            ring: -1.50,
+
+            pinky: 0
+        }
+    },
+
+
+    K: {
+
+        right: {
+
+            thumb: -0.30,
+
+            index: 0,
+
+            middle: 0,
+
+            ring: -1.50,
+
+            pinky: -1.50
+        }
+    },
+
+
+    L: {
+
+        right: {
+
+            thumb: 0,
+
+            index: 0,
+
+            middle: -1.50,
+
+            ring: -1.50,
+
+            pinky: -1.50
+        }
+    },
+
+
+    M: {
+
+        right: {
+
+            thumb: -0.60,
+
+            index: -1.20,
+
+            middle: -1.20,
+
+            ring: -1.20,
+
+            pinky: -1.20
+        }
+    },
+
+
+    N: {
+
+        right: {
+
+            thumb: -0.60,
+
+            index: -0.90,
+
+            middle: -0.90,
+
+            ring: -1.10,
+
+            pinky: -1.10
+        }
+    },
+
+
+    O: {
+
+        right: {
+
+            thumb: -0.55,
+
+            index: -0.65,
+
+            middle: -0.65,
+
+            ring: -0.65,
+
+            pinky: -0.65
+        }
+    },
+
+
+    P: {
+
+        right: {
+
+            thumb: -0.30,
+
+            index: 0,
+
+            middle: 0,
+
+            ring: -1.50,
+
+            pinky: -1.50
+        }
+    },
+
+
+    Q: {
+
+        right: {
+
+            thumb: -0.30,
+
+            index: 0,
+
+            middle: -1.50,
+
+            ring: -1.50,
+
+            pinky: -1.50
+        }
+    },
+
+
+    R: {
+
+        right: {
+
+            thumb: -0.35,
+
+            index: 0,
+
+            middle: 0,
+
+            ring: -1.50,
+
+            pinky: -1.50
+        }
+    },
+
+
+    S: {
+
+        right: {
+
+            thumb: -0.60,
+
+            index: -1.60,
+
+            middle: -1.60,
+
+            ring: -1.60,
+
+            pinky: -1.60
+        }
+    },
+
+
+    T: {
+
+        right: {
+
+            thumb: -0.60,
+
+            index: -0.90,
+
+            middle: -1.60,
+
+            ring: -1.60,
+
+            pinky: -1.60
+        }
+    },
+
+
+    U: {
+
+        right: {
+
+            thumb: -0.35,
+
+            index: 0,
+
+            middle: 0,
+
+            ring: -1.50,
+
+            pinky: -1.50
+        }
+    },
+
+
+    V: {
+
+        right: {
+
+            thumb: -0.35,
+
+            index: 0,
+
+            middle: 0,
+
+            ring: -1.50,
+
+            pinky: -1.50
+        }
+    },
+
+
+    W: {
+
+        right: {
+
+            thumb: -0.30,
+
+            index: 0,
+
+            middle: 0,
+
+            ring: 0,
+
+            pinky: -1.50
+        }
+    },
+
+
+    X: {
+
+        right: {
+
+            thumb: -0.35,
+
+            index: -0.70,
+
+            middle: -1.50,
+
+            ring: -1.50,
+
+            pinky: -1.50
+        }
+    },
+
+
+    Y: {
+
+        right: {
+
+            thumb: 0,
+
+            index: -1.50,
+
+            middle: -1.50,
+
+            ring: -1.50,
+
+            pinky: 0
+        }
+    },
+
+
+    Z: {
+
+        right: {
+
+            thumb: -0.35,
+
+            index: 0,
+
+            middle: -1.50,
+
+            ring: -1.50,
+
+            pinky: -1.50
+        }
+    }
+};
+
+
+/* =========================================================
+   GET SIGN
+   ========================================================= */
+
+function getSignPose(key) {
+
+    const clean =
+        String(
+            key || ""
+        )
+            .trim()
+            .toUpperCase();
+
+
+    if (
+        SIGN_POSES[clean]
+    ) {
+
+        return SIGN_POSES[
+            clean
+        ];
+    }
+
+
+    const first =
+        clean.charAt(0);
+
+
+    if (
+        SIGN_POSES[first]
+    ) {
+
+        return SIGN_POSES[
+            first
+        ];
+    }
+
+
+    return SIGN_POSES.A;
+}
+
+
+/* =========================================================
+   SET SIGN
+   ========================================================= */
 
 function setSign(key) {
-  if (SIGN_DATA.alphabet[key]) animateHandToPose(SIGN_DATA.alphabet[key].fingers);
-  else if (SIGN_DATA.words[key]) animateHandToPose(SIGN_DATA.words[key].fingers);
+
+    console.log(
+        "EduBridge: setSign() ->",
+        key
+    );
+
+
+    if (
+        !remyLoaded
+    ) {
+
+        console.warn(
+            "Remy is not loaded."
+        );
+
+        return;
+    }
+
+
+    /*
+       Stop automatic test.
+    */
+
+    handTest.active =
+        false;
+
+
+    stopFBXAnimation();
+
+
+    /*
+       Save selected sign.
+    */
+
+    currentSignKey =
+        key;
+
+
+    currentSignPose =
+        getSignPose(
+            key
+        );
+
+
+    /*
+       Start from T-pose.
+    */
+
+    restoreBody();
+
+
+    /*
+       Start complete animation.
+    */
+
+    signAnimation.active =
+        true;
+
+
+    signAnimation.startTime =
+        performance.now();
+
+
+    signAnimation.pose =
+        currentSignPose;
+
+
+    console.log(
+        "Animating sign:",
+        key
+    );
 }
+
+
+/* =========================================================
+   PLAY SIGN ANIMATION
+   ========================================================= */
+
+function playSignAnimation() {
+
+    if (
+        !remyLoaded
+    ) {
+
+        console.warn(
+            "Remy not ready."
+        );
+
+        return;
+    }
+
+
+    let key =
+        currentSignKey;
+
+
+    /*
+       Read existing app.js state.
+    */
+
+    try {
+
+        if (
+            typeof SIGN_DATA !==
+            "undefined" &&
+
+            typeof currentLesson !==
+            "undefined" &&
+
+            typeof currentSignIndex !==
+            "undefined"
+        ) {
+
+            const lesson =
+                SIGN_DATA.lessons &&
+                SIGN_DATA.lessons[
+                    currentLesson
+                ];
+
+
+            if (
+                lesson &&
+                lesson.signs &&
+                lesson.signs[
+                    currentSignIndex
+                ]
+            ) {
+
+                key =
+                    lesson.signs[
+                        currentSignIndex
+                    ];
+            }
+        }
+
+    } catch (
+        error
+    ) {
+
+        console.warn(
+            "Lesson information unavailable."
+        );
+    }
+
+
+    if (
+        !key
+    ) {
+
+        key =
+            "A";
+    }
+
+
+    setSign(
+        key
+    );
+}
+
+
+/* =========================================================
+   UPDATE SIGN ANIMATION
+   ========================================================= */
+
+function updateSignAnimation() {
+
+    if (
+        !signAnimation.active ||
+        !signAnimation.pose
+    ) {
+
+        return;
+    }
+
+
+    const elapsed =
+        performance.now() -
+        signAnimation.startTime;
+
+
+    const progress =
+        Math.min(
+            elapsed /
+            signAnimation.duration,
+            1
+        );
+
+
+    /*
+       IMPORTANT:
+
+       Restore original T-pose
+       every frame.
+
+       Then calculate the exact
+       current animation position.
+    */
+
+    restoreBody();
+
+
+    applySignPose(
+        signAnimation.pose,
+        progress
+    );
+
+
+    if (
+        progress >= 1
+    ) {
+
+        signAnimation.active =
+            false;
+
+
+        restoreBody();
+
+
+        applySignPose(
+            signAnimation.pose,
+            1
+        );
+    }
+}
+
+
+/* =========================================================
+   FULL BODY TEST
+   ========================================================= */
+
+function startFullBodyTest() {
+
+    if (
+        !remyLoaded
+    ) {
+
+        return;
+    }
+
+
+    console.log(
+        "========================================"
+    );
+
+    console.log(
+        "FULL BODY TEST"
+    );
+
+    console.log(
+        "T-POSE"
+    );
+
+    console.log(
+        "    ↓"
+    );
+
+    console.log(
+        "ARM DOWN"
+    );
+
+    console.log(
+        "    ↓"
+    );
+
+    console.log(
+        "HAND CLOSE"
+    );
+
+    console.log(
+        "    ↓"
+    );
+
+    console.log(
+        "HAND OPEN"
+    );
+
+    console.log(
+        "========================================"
+    );
+
+
+    signAnimation.active =
+        false;
+
+
+    handTest.active =
+        true;
+
+
+    handTest.startTime =
+        performance.now();
+
+
+    restoreBody();
+}
+
+
+/* =========================================================
+   UPDATE FULL BODY TEST
+   ========================================================= */
+
+function updateFullBodyTest() {
+
+    if (
+        !handTest.active
+    ) {
+
+        return;
+    }
+
+
+    const elapsed =
+        performance.now() -
+        handTest.startTime;
+
+
+    /* =====================================================
+       PHASE 1
+       T-POSE -> SIGNING ARM
+       0 - 1500ms
+       ===================================================== */
+
+    if (
+        elapsed < 1500
+    ) {
+
+        const p =
+            elapsed /
+            1500;
+
+
+        restoreBody();
+
+
+        applySigningArm(
+            "right",
+            p
+        );
+
+
+        return;
+    }
+
+
+    /* =====================================================
+       PHASE 2
+       SIGNING ARM + CLOSE FINGERS
+       1500 - 2500
+       ===================================================== */
+
+    if (
+        elapsed < 2500
+    ) {
+
+        const p =
+            (
+                elapsed -
+                1500
+            ) /
+            1000;
+
+
+        restoreBody();
+
+
+        applySigningArm(
+            "right",
+            1
+        );
+
+
+        applyHandPose(
+
+            "right",
+
+            {
+                thumb: -0.90,
+                index: -2.0,
+                middle: -2.0,
+                ring: -2.0,
+                pinky: -2.0
+            },
+
+            p
+        );
+
+
+        return;
+    }
+
+
+    /* =====================================================
+       PHASE 3
+       OPEN FINGERS
+       2500 - 3500
+       ===================================================== */
+
+    if (
+        elapsed < 3500
+    ) {
+
+        const p =
+            (
+                elapsed -
+                2500
+            ) /
+            1000;
+
+
+        restoreBody();
+
+
+        applySigningArm(
+            "right",
+            1
+        );
+
+
+        applyHandPose(
+
+            "right",
+
+            {
+                thumb: 0,
+                index: 0,
+                middle: 0,
+                ring: 0,
+                pinky: 0
+            },
+
+            p
+        );
+
+
+        return;
+    }
+
+
+    /* =====================================================
+       PHASE 4
+       RETURN TO T-POSE
+       3500 - 5000
+       ===================================================== */
+
+    if (
+        elapsed < 5000
+    ) {
+
+        const p =
+            (
+                elapsed -
+                3500
+            ) /
+            1500;
+
+
+        /*
+           Reverse animation.
+        */
+
+        restoreBody();
+
+
+        applySigningArm(
+            "right",
+            1 - p
+        );
+
+
+        return;
+    }
+
+
+    /* =====================================================
+       FINISH
+       ===================================================== */
+
+    handTest.active =
+        false;
+
+
+    restoreBody();
+
+
+    console.log(
+        "FULL BODY TEST FINISHED"
+    );
+
+
+    /*
+       Return to selected sign
+       after test.
+    */
+
+    if (
+        currentSignKey
+    ) {
+
+        setTimeout(
+            function() {
+
+                setSign(
+                    currentSignKey
+                );
+
+            },
+            300
+        );
+    }
+}
+
+
+/* =========================================================
+   FBX ANIMATIONS
+   ========================================================= */
+
+function setupFBXAnimations(model) {
+
+    if (
+        !model.animations ||
+        model.animations.length === 0
+    ) {
+
+        console.log(
+            "No embedded FBX animations."
+        );
+
+        return;
+    }
+
+
+    console.log(
+        "========================================"
+    );
+
+
+    console.log(
+        "FBX ANIMATIONS"
+    );
+
+
+    console.log(
+        "COUNT:",
+        model.animations.length
+    );
+
+
+    model.animations.forEach(
+        function(clip, index) {
+
+            console.log(
+                index +
+                " : " +
+                clip.name +
+                " : " +
+                clip.duration +
+                " sec"
+            );
+        }
+    );
+
+
+    console.log(
+        "========================================"
+    );
+
+
+    mixer =
+        new THREE.AnimationMixer(
+            model
+        );
+}
+
+
+/* =========================================================
+   PLAY FBX
+   ========================================================= */
+
+function playFBXAnimation() {
+
+    if (
+        !mixer ||
+        !avatar ||
+        !avatar.animations ||
+        !avatar.animations.length
+    ) {
+
+        console.warn(
+            "No FBX animation."
+        );
+
+        return;
+    }
+
+
+    handTest.active =
+        false;
+
+
+    signAnimation.active =
+        false;
+
+
+    stopFBXAnimation();
+
+
+    const clip =
+        avatar.animations[0];
+
+
+    currentAction =
+        mixer.clipAction(
+            clip
+        );
+
+
+    currentAction.reset();
+
+
+    currentAction.setLoop(
+        THREE.LoopRepeat,
+        Infinity
+    );
+
+
+    currentAction.play();
+
+
+    console.log(
+        "Playing FBX animation:",
+        clip.name
+    );
+}
+
+
+/* =========================================================
+   STOP FBX
+   ========================================================= */
+
+function stopFBXAnimation() {
+
+    if (
+        !mixer
+    ) {
+
+        return;
+    }
+
+
+    mixer.stopAllAction();
+
+
+    currentAction =
+        null;
+}
+
+
+/* =========================================================
+   CAMERA
+   ========================================================= */
+
+function setupCameraForModel(model) {
+
+    const box =
+        new THREE.Box3()
+            .setFromObject(
+                model
+            );
+
+
+    const size =
+        box.getSize(
+            new THREE.Vector3()
+        );
+
+
+    cameraTarget.set(
+        0,
+        size.y * 0.52,
+        0
+    );
+
+
+    cameraHeight =
+        size.y * 0.52;
+
+
+    cameraDistance =
+        Math.max(
+            4,
+            size.y * 1.65
+        );
+
+
+    camera.position.set(
+        0,
+        cameraHeight,
+        cameraDistance
+    );
+
+
+    camera.lookAt(
+        cameraTarget
+    );
+}
+
+
+/* =========================================================
+   RESET CAMERA
+   ========================================================= */
+
+function resetCamera() {
+
+    cameraAngle =
+        0;
+
+
+    if (
+        avatar
+    ) {
+
+        setupCameraForModel(
+            avatar
+        );
+    }
+}
+
+
+/* =========================================================
+   CONTROLS
+   ========================================================= */
+
+function setupControls(canvas) {
+
+    let dragging =
+        false;
+
+
+    let lastX =
+        0;
+
+
+    let lastY =
+        0;
+
+
+    canvas.addEventListener(
+        "mousedown",
+        function(event) {
+
+            dragging =
+                true;
+
+
+            lastX =
+                event.clientX;
+
+
+            lastY =
+                event.clientY;
+
+
+            canvas.style.cursor =
+                "grabbing";
+        }
+    );
+
+
+    canvas.addEventListener(
+        "mousemove",
+        function(event) {
+
+            if (
+                !dragging
+            ) {
+
+                return;
+            }
+
+
+            const dx =
+                event.clientX -
+                lastX;
+
+
+            const dy =
+                event.clientY -
+                lastY;
+
+
+            cameraAngle -=
+                dx * 0.008;
+
+
+            cameraHeight -=
+                dy * 0.004;
+
+
+            if (
+                avatar
+            ) {
+
+                const box =
+                    new THREE.Box3()
+                        .setFromObject(
+                            avatar
+                        );
+
+
+                const size =
+                    box.getSize(
+                        new THREE.Vector3()
+                    );
+
+
+                cameraHeight =
+                    Math.max(
+                        size.y * 0.25,
+
+                        Math.min(
+                            size.y * 0.80,
+                            cameraHeight
+                        )
+                    );
+            }
+
+
+            lastX =
+                event.clientX;
+
+
+            lastY =
+                event.clientY;
+        }
+    );
+
+
+    canvas.addEventListener(
+        "mouseup",
+        function() {
+
+            dragging =
+                false;
+
+
+            canvas.style.cursor =
+                "grab";
+        }
+    );
+
+
+    canvas.addEventListener(
+        "mouseleave",
+        function() {
+
+            dragging =
+                false;
+
+
+            canvas.style.cursor =
+                "grab";
+        }
+    );
+
+
+    canvas.addEventListener(
+        "wheel",
+        function(event) {
+
+            cameraDistance +=
+                event.deltaY *
+                0.004;
+
+
+            cameraDistance =
+                Math.max(
+                    2.5,
+
+                    Math.min(
+                        9,
+                        cameraDistance
+                    )
+                );
+
+
+            event.preventDefault();
+
+        },
+        {
+            passive: false
+        }
+    );
+
+
+    canvas.style.cursor =
+        "grab";
+}
+
+
+/* =========================================================
+   UPDATE CAMERA
+   ========================================================= */
+
+function updateCamera() {
+
+    if (
+        !camera
+    ) {
+
+        return;
+    }
+
+
+    const x =
+        Math.sin(
+            cameraAngle
+        ) *
+        cameraDistance;
+
+
+    const z =
+        Math.cos(
+            cameraAngle
+        ) *
+        cameraDistance;
+
+
+    camera.position.set(
+        x,
+        cameraHeight,
+        z
+    );
+
+
+    camera.lookAt(
+        cameraTarget
+    );
+}
+
+
+/* =========================================================
+   RESIZE
+   ========================================================= */
+
+function resizeAvatar() {
+
+    const container =
+        document.getElementById(
+            "avatar-container"
+        );
+
+
+    if (
+        !container ||
+        !camera ||
+        !renderer
+    ) {
+
+        return;
+    }
+
+
+    const width =
+        container.clientWidth;
+
+
+    const height =
+        container.clientHeight;
+
+
+    if (
+        width <= 0 ||
+        height <= 0
+    ) {
+
+        return;
+    }
+
+
+    camera.aspect =
+        width /
+        height;
+
+
+    camera.updateProjectionMatrix();
+
+
+    renderer.setSize(
+        width,
+        height
+    );
+}
+
+
+/* =========================================================
+   PRINT BONE SUMMARY
+   ========================================================= */
+
+function printBoneSummary() {
+
+    console.log(
+        "========================================"
+    );
+
+    console.log(
+        "ARM BONES"
+    );
+
+    console.log(
+        "========================================"
+    );
+
+
+    console.log(
+        "Right Arm:",
+        remyBones.rightArm
+            ? remyBones.rightArm.name
+            : "NOT FOUND"
+    );
+
+
+    console.log(
+        "Right ForeArm:",
+        remyBones.rightForeArm
+            ? remyBones.rightForeArm.name
+            : "NOT FOUND"
+    );
+
+
+    console.log(
+        "Right Hand:",
+        remyBones.rightHand
+            ? remyBones.rightHand.name
+            : "NOT FOUND"
+    );
+
+
+    console.log(
+        "Left Arm:",
+        remyBones.leftArm
+            ? remyBones.leftArm.name
+            : "NOT FOUND"
+    );
+
+
+    console.log(
+        "Left ForeArm:",
+        remyBones.leftForeArm
+            ? remyBones.leftForeArm.name
+            : "NOT FOUND"
+    );
+
+
+    console.log(
+        "Left Hand:",
+        remyBones.leftHand
+            ? remyBones.leftHand.name
+            : "NOT FOUND"
+    );
+
+
+    console.log(
+        "========================================"
+    );
+
+
+    console.log(
+        "FINGER BONES"
+    );
+
+
+    console.log(
+        "Right Thumb:",
+        remyBones.rightThumb.map(
+            b => b.name
+        )
+    );
+
+
+    console.log(
+        "Right Index:",
+        remyBones.rightIndex.map(
+            b => b.name
+        )
+    );
+
+
+    console.log(
+        "Right Middle:",
+        remyBones.rightMiddle.map(
+            b => b.name
+        )
+    );
+
+
+    console.log(
+        "Right Ring:",
+        remyBones.rightRing.map(
+            b => b.name
+        )
+    );
+
+
+    console.log(
+        "Right Pinky:",
+        remyBones.rightPinky.map(
+            b => b.name
+        )
+    );
+
+
+    console.log(
+        "========================================"
+    );
+}
+
+
+/* =========================================================
+   ERROR
+   ========================================================= */
+
+function showError(message) {
+
+    const container =
+        document.getElementById(
+            "avatar-container"
+        );
+
+
+    if (
+        !container
+    ) {
+
+        return;
+    }
+
+
+    const box =
+        document.createElement(
+            "div"
+        );
+
+
+    box.style.position =
+        "absolute";
+
+
+    box.style.left =
+        "50%";
+
+
+    box.style.top =
+        "50%";
+
+
+    box.style.transform =
+        "translate(-50%, -50%)";
+
+
+    box.style.padding =
+        "20px";
+
+
+    box.style.background =
+        "#ffffff";
+
+
+    box.style.color =
+        "#dc2626";
+
+
+    box.style.fontWeight =
+        "700";
+
+
+    box.style.borderRadius =
+        "14px";
+
+
+    box.style.boxShadow =
+        "0 10px 30px rgba(0,0,0,.15)";
+
+
+    box.style.zIndex =
+        "100";
+
+
+    box.textContent =
+        message;
+
+
+    container.appendChild(
+        box
+    );
+}
+
+
+/* =========================================================
+   MAIN LOOP
+   ========================================================= */
+
+function animate() {
+
+    animationFrame =
+        requestAnimationFrame(
+            animate
+        );
+
+
+    const delta =
+        clock
+            ? clock.getDelta()
+            : 0;
+
+
+    /*
+       FBX animation.
+    */
+
+    if (
+        mixer
+    ) {
+
+        mixer.update(
+            delta
+        );
+    }
+
+
+    /*
+       Automatic test.
+    */
+
+    if (
+        handTest.active
+    ) {
+
+        updateFullBodyTest();
+
+    } else {
+
+        /*
+           Normal sign animation.
+        */
+
+        updateSignAnimation();
+    }
+
+
+    /*
+       Camera.
+    */
+
+    updateCamera();
+
+
+    /*
+       Render.
+    */
+
+    if (
+        renderer &&
+        scene &&
+        camera
+    ) {
+
+        renderer.render(
+            scene,
+            camera
+        );
+    }
+}
+
+
+/* =========================================================
+   DISPOSE
+   ========================================================= */
 
 function dispose() {
-  if (animFrameId) cancelAnimationFrame(animFrameId);
-  if (renderer) renderer.dispose();
-  if (scene) scene.traverse(function(obj) {
-    if (obj.geometry) obj.geometry.dispose();
-    if (obj.material) {
-      if (Array.isArray(obj.material)) obj.material.forEach(function(m) { m.dispose(); });
-      else obj.material.dispose();
+
+    if (
+        animationFrame
+    ) {
+
+        cancelAnimationFrame(
+            animationFrame
+        );
+
+
+        animationFrame =
+            null;
     }
-  });
+
+
+    if (
+        mixer
+    ) {
+
+        mixer.stopAllAction();
+
+        mixer =
+            null;
+    }
+
+
+    if (
+        renderer
+    ) {
+
+        renderer.dispose();
+    }
+
+
+    if (
+        scene
+    ) {
+
+        scene.traverse(
+            function(object) {
+
+                if (
+                    object.geometry
+                ) {
+
+                    object.geometry.dispose();
+                }
+
+
+                if (
+                    object.material
+                ) {
+
+                    if (
+                        Array.isArray(
+                            object.material
+                        )
+                    ) {
+
+                        object.material.forEach(
+                            function(material) {
+
+                                material.dispose();
+                            }
+                        );
+
+                    } else {
+
+                        object.material.dispose();
+                    }
+                }
+            }
+        );
+    }
+
+
+    scene =
+        null;
+
+
+    camera =
+        null;
+
+
+    renderer =
+        null;
+
+
+    avatar =
+        null;
+
+
+    remyLoaded =
+        false;
+
+
+    restPose.clear();
 }
 
-function focusCamera() {
-  if (controls) {
-    cameraTargetY = 0.85;
-    cameraDistance = 4.2;
-    cameraAngle = 0;
-  }
-}
 
-window.setSign = setSign;
-window.focusCamera = focusCamera;
-window.dispose = dispose;
-window.animateHandToPose = animateHandToPose;
-window.applyPoseToHand = applyPoseToHand;
+/* =========================================================
+   GLOBAL API
+   ========================================================= */
+
+window.setSign =
+    setSign;
+
+
+window.playSignAnimation =
+    playSignAnimation;
+
+
+window.focusCamera =
+    resetCamera;
+
+
+window.dispose =
+    dispose;
+
+
+window.testHandMovement =
+    startFullBodyTest;
+
+
+window.playFBXAnimation =
+    playFBXAnimation;
+
+
+window.stopFBXAnimation =
+    stopFBXAnimation;
+
+
+window.animateHandToPose =
+    function(pose) {
+
+        if (
+            !remyLoaded
+        ) {
+
+            return;
+        }
+
+
+        handTest.active =
+            false;
+
+
+        stopFBXAnimation();
+
+
+        restoreBody();
+
+
+        currentSignPose =
+            pose;
+
+
+        signAnimation.active =
+            true;
+
+
+        signAnimation.startTime =
+            performance.now();
+
+
+        signAnimation.pose =
+            pose;
+    };
+
+
+/* =========================================================
+   START
+   ========================================================= */
+
+if (
+    document.readyState ===
+    "loading"
+) {
+
+    document.addEventListener(
+        "DOMContentLoaded",
+        init
+    );
+
+} else {
+
+    init();
+}
