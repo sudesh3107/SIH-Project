@@ -96,6 +96,68 @@
     id="toast-container"
   ></div>
 
+  <!-- =====================================================
+       AUTH MODAL
+  ====================================================== -->
+  <div id="auth-overlay" class="auth-overlay" style="display:none;" aria-hidden="true">
+    <div class="auth-modal" role="dialog" aria-modal="true" aria-labelledby="auth-title">
+      <button class="auth-close" onclick="hideAuthModal()" aria-label="Close login modal"><i class="fa-solid fa-xmark"></i></button>
+      <div class="auth-header">
+        <div class="auth-logo"><i class="fa-solid fa-ear-listen"></i></div>
+        <h2 id="auth-title">Welcome to EduAccess</h2>
+        <p>Sign in to continue your inclusive learning journey</p>
+      </div>
+      <div class="auth-tabs">
+        <button id="auth-tab-login" class="auth-tab active" onclick="switchAuthTab('login')"><i class="fa-solid fa-right-to-bracket"></i> Login</button>
+        <button id="auth-tab-register" class="auth-tab" onclick="switchAuthTab('register')"><i class="fa-solid fa-user-plus"></i> Register</button>
+      </div>
+      <div id="auth-pane-login" class="auth-pane">
+        <form onsubmit="return handleLogin(event)" novalidate>
+          <div id="login-error" class="auth-error" style="display:none;"></div>
+          <label class="auth-label">Email
+            <input type="email" id="login-email" placeholder="demo@eduaccess.local" required autocomplete="email">
+          </label>
+          <label class="auth-label">Password
+            <div class="auth-pass-wrap">
+              <input type="password" id="login-password" placeholder="••••••••" required autocomplete="current-password">
+              <button type="button" class="auth-eye" onclick="toggleAuthEye('login-password', this)" aria-label="Show password"><i class="fa-solid fa-eye"></i></button>
+            </div>
+          </label>
+          <label class="auth-check"><input type="checkbox" id="login-remember"> Remember me</label>
+          <button id="login-submit" type="submit" class="speech-btn primary" style="width:100%; justify-content:center; margin-top:10px; padding:12px;"><i class="fa-solid fa-right-to-bracket"></i> Login</button>
+          <p class="auth-hint">Demo: <strong>demo@eduaccess.local / demo123</strong> <button type="button" onclick="fillDemo(); return false;" class="auth-link">Fill demo</button></p>
+          <p class="auth-switch">No account? <button type="button" class="auth-link" onclick="switchAuthTab('register')">Create one</button></p>
+        </form>
+      </div>
+      <div id="auth-pane-register" class="auth-pane" style="display:none;">
+        <form onsubmit="return handleRegister(event)" novalidate>
+          <div id="reg-error" class="auth-error" style="display:none;"></div>
+          <label class="auth-label">Full name
+            <input type="text" id="reg-name" placeholder="Aarav Sharma" required autocomplete="name">
+          </label>
+          <label class="auth-label">Email
+            <input type="email" id="reg-email" placeholder="you@example.com" required autocomplete="email">
+          </label>
+          <label class="auth-label">Password
+            <div class="auth-pass-wrap">
+              <input type="password" id="reg-password" placeholder="At least 6 characters" required autocomplete="new-password">
+              <button type="button" class="auth-eye" onclick="toggleAuthEye('reg-password', this)" aria-label="Show password"><i class="fa-solid fa-eye"></i></button>
+            </div>
+          </label>
+          <label class="auth-label">Confirm password
+            <div class="auth-pass-wrap">
+              <input type="password" id="reg-confirm" placeholder="Repeat password" required autocomplete="new-password">
+              <button type="button" class="auth-eye" onclick="toggleAuthEye('reg-confirm', this)" aria-label="Show password"><i class="fa-solid fa-eye"></i></button>
+            </div>
+          </label>
+          <button id="reg-submit" type="submit" class="speech-btn primary" style="width:100%; justify-content:center; margin-top:10px; padding:12px;"><i class="fa-solid fa-user-plus"></i> Create account</button>
+          <p class="auth-switch">Already have an account? <button type="button" class="auth-link" onclick="switchAuthTab('login')">Login</button></p>
+          <p class="auth-terms">By registering you agree to our Terms (demo — data stored locally in your browser).</p>
+        </form>
+      </div>
+    </div>
+  </div>
+
 
   <!-- =====================================================
        NAVBAR
@@ -401,6 +463,9 @@
           </button>
 
         </div>
+
+        <div id="hero-auth-cta" style="margin-top:18px; display:none;"></div>
+        <div data-user-greeting style="margin-top:12px; font-weight:800; font-size:1rem; display:none;"></div>
 
       </div>
 
@@ -847,6 +912,10 @@
         Show a sign to your webcam — we’ll recognize it and tell you what it means. Powered by MediaPipe Hands, 100% in-browser. No video leaves your device.
       </div>
 
+      <div style="background:#ecfdf5; border:1px solid #6ee7b7; color:#065f46; padding:10px 14px; border-radius:10px; font-size:0.85rem; font-weight:600; margin-bottom:14px; display:flex; gap:8px; align-items:center;">
+        <i class="fa-solid fa-wrench"></i> Fixed: hello/O bias — now defaults to <strong>Letters A–Z only</strong>. If you still see “hello” for every sign, hard-refresh (Ctrl+Shift+R) and enable <strong>High accuracy</strong> + calibrate.
+      </div>
+
       <div class="detect-layout">
 
         <!-- LEFT: VIDEO -->
@@ -874,11 +943,12 @@
             <label class="detect-toggle"><input type="checkbox" id="detect-mirror" checked onchange="toggleMirror()"> <span>Mirror</span></label>
             <label class="detect-toggle"><input type="checkbox" id="detect-landmarks" checked onchange="toggleLandmarks()"> <span>Landmarks</span></label>
             <label class="detect-toggle"><input type="checkbox" id="detect-autospeak" onchange="toggleAutoSpeak()"> <span>Auto-speak</span></label>
+            <label class="detect-toggle" title="Limit to 17 most distinct signs for fewer confusions"><input type="checkbox" id="detect-highacc" onchange="toggleHighAccuracy()"> <span>High accuracy</span></label>
             <label class="detect-toggle" style="flex:1; min-width:160px;">
               <span style="font-size:0.8rem; font-weight:700;">Mode</span>
               <select id="detect-mode" class="pdf-select" style="padding:6px 10px; min-width:120px;" onchange="changeDetectMode(this.value)">
-                <option value="all" selected>All (Letters + Words)</option>
-                <option value="letters">Letters A–Z only</option>
+                <option value="all">All (Letters + Words)</option>
+                <option value="letters" selected>Letters A–Z only — recommended</option>
                 <option value="words">Words only</option>
               </select>
             </label>
@@ -889,10 +959,10 @@
           <div class="detect-settings">
             <div class="speed-control" style="justify-content:flex-start; margin:0;">
               <label for="detect-thresh" style="font-size:0.85rem; font-weight:700;"><i class="fa-solid fa-sliders"></i> Confidence</label>
-              <input type="range" id="detect-thresh" class="speed-slider" min="30" max="90" value="60" oninput="updateDetectThreshold(this.value)">
-              <span id="detect-thresh-val">60%</span>
+              <input type="range" id="detect-thresh" class="speed-slider" min="30" max="90" value="65" oninput="updateDetectThreshold(this.value)">
+              <span id="detect-thresh-val">65%</span>
             </div>
-            <p style="font-size:0.78rem; color:var(--text-muted); margin-top:6px;">Lower = more sensitive, higher = stricter. Hold sign steady 1–2s.</p>
+            <p style="font-size:0.78rem; color:var(--text-muted); margin-top:6px;">Tip: 60–65% balanced. Increase to 70%+ if you see false positives. Hold sign steady 1–2s.</p>
           </div>
 
         </div>
@@ -918,15 +988,32 @@
             <div id="detect-history-list" class="detect-history-list"><p class="pdf-empty" style="padding:10px;">No detections yet.</p></div>
           </div>
 
+          <div class="detect-calib" style="background:var(--bg-card); border:1px solid var(--border); border-radius:12px; padding:14px;">
+            <h4 style="font-size:0.95rem; font-weight:800; margin-bottom:8px; display:flex; align-items:center; gap:8px;"><i class="fa-solid fa-bullseye" style="color:var(--primary);"></i> Personal calibration — boost accuracy <span style="background:var(--primary); color:white; padding:2px 6px; border-radius:4px; font-size:0.65rem;">NEW</span></h4>
+            <p style="font-size:0.82rem; color:var(--text-secondary); margin-bottom:10px;">Your hand is unique. Capture 2–3 samples per sign you use most — detection will prefer your personal samples and jump to ~90% accuracy.</p>
+            <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:end; margin-bottom:10px;">
+              <label style="flex:1; min-width:140px; font-size:0.85rem; font-weight:700;">Sign to calibrate
+                <select id="detect-calib-select" class="pdf-select" style="width:100%; margin-top:4px;">
+                  <option value="">— pick —</option>
+                  <option value="A">A — Fist</option><option value="B">B — Flat</option><option value="C">C — Curved</option><option value="D">D — Index up</option><option value="E">E — Curled</option><option value="F">F — Circle</option><option value="I">I — Pinky</option><option value="L">L — L shape</option><option value="O">O — Circle</option><option value="V">V — Peace</option><option value="W">W — Three</option><option value="Y">Y — Thumb+pinky</option><option value="hello">hello</option><option value="thank">thank</option><option value="yes">yes</option><option value="no">no</option><option value="help">help</option><option value="love">love</option>
+                </select>
+              </label>
+              <button class="speech-btn primary" onclick="captureCalibSample()" style="white-space:nowrap;"><i class="fa-solid fa-crosshairs"></i> Capture Sample</button>
+            </div>
+            <div id="detect-calib-list"></div>
+            <p style="font-size:0.75rem; color:var(--text-muted); margin-top:8px;">How: Select sign → hold it clearly in frame → <strong>Capture Sample</strong>. Repeat 2–3× with slight angle changes. Personal samples are stored locally only.</p>
+          </div>
+
           <div class="detect-help">
             <h4><i class="fa-solid fa-lightbulb"></i> Tips for best accuracy</h4>
             <ul>
-              <li>Plain background, front lighting on hand, avoid shadows.</li>
-              <li>Keep hand centered, ~30–50cm from camera, palm mostly forward.</li>
-              <li>Hold steady 1–2 seconds; avoid motion blur.</li>
-              <li>Currently best: <strong>A, B, C, D, L, V, W, O, F, Y, I</strong> + words <strong>hello, thank, please, yes, no, help, love</strong>.</li>
-              <li>Click any detected sign to hear it and see the 3D avatar in <em>Learn</em>.</li>
-              <li>Demo mode auto-simulates if MediaPipe fails to load (offline).</li>
+              <li><strong>Enable High accuracy</strong> to limit to 17 most distinct signs — far fewer confusions (A vs S vs T etc).</li>
+              <li>Use <strong>Letters only</strong> when practicing alphabet.</li>
+              <li>Plain background, front lighting, ~30–50cm, palm forward, fingers clearly separated.</li>
+              <li>Hold steady 1.5s until “Detected” (not just “Seeing”). Keep hand centered.</li>
+              <li><strong>Calibrate</strong> your hand (above) — biggest boost: +15–25% accuracy.</li>
+              <li>Raise threshold to 70% if you get false positives; lower to 55% if missed.</li>
+              <li>Click any result to hear it and see avatar in <em>Learn</em>.</li>
             </ul>
           </div>
 
@@ -935,12 +1022,13 @@
       </div>
 
       <div class="pdf-help" style="margin-top:18px;">
-        <h4><i class="fa-solid fa-shield-halved"></i> Privacy & How it works</h4>
+        <h4><i class="fa-solid fa-shield-halved"></i> Privacy & How it works (v2 — improved)</h4>
         <ul>
-          <li><strong>On-device:</strong> Hand landmarks are detected locally with MediaPipe Hands; no video is uploaded.</li>
-          <li><strong>Template matching:</strong> Finger curls (thumb–pinky) are compared to templates derived from <code>SIGN_DATA</code> (the same data that drives the 3D avatar). Confidence = 1 − distance/√5.</li>
-          <li><strong>Stability:</strong> Requires ~8 consistent frames + 60% confidence to confirm, preventing flicker.</li>
-          <li><strong>Fallback:</strong> If camera/MediaPipe unavailable, a demo loop simulates detections so the UI remains testable.</li>
+          <li><strong>On-device:</strong> MediaPipe Hands extracts 21 landmarks locally; no video leaves your device.</li>
+          <li><strong>12-D feature:</strong> 5 finger curls + thumb position + 4 thumb-to-fingertip distances + 3 spread measures + palm orientation. Compared to <strong>manual ASL templates</strong> (not just avatar data) plus your <strong>personal calibration</strong> via KNN.</li>
+          <li><strong>Smoothing:</strong> Majority vote over last 5 frames + 6-frame stability + 1.4s cooldown + confidence gating → far fewer flickers.</li>
+          <li><strong>High accuracy mode:</strong> Restricts to 17 visually distinct signs to avoid confusions like M/N/S/T.</li>
+          <li><strong>Personal:</strong> Calibration samples are stored in <code>localStorage</code> only; clear anytime.</li>
         </ul>
       </div>
 
@@ -1767,14 +1855,14 @@
 
     <div class="container">
 
-      <div class="page-title">
+      <div class="page-title" id="dashboard-user-title">
         <i class="fa-solid fa-table-columns" style="color:var(--primary);"></i>
         Dashboard
       </div>
 
 
       <div class="page-subtitle">
-        Your unified overview — lessons, practice, quizzes, PDFs and streaks in one place.
+        Your unified overview — lessons, practice, quizzes, PDFs and streaks in one place. <span data-user-greeting style="display:none; font-weight:800; color:var(--primary);"></span>
       </div>
 
       <!-- Top stats -->
@@ -1907,9 +1995,11 @@
 
   <script src="js/quizModule.js"></script>
 
-  <script src="js/signDetect.js"></script>
+  <script src="js/signDetect.js?v=2"></script>
 
-  <script src="js/app.js"></script>
+  <script src="js/auth.js"></script>
+
+  <script src="js/app.js?v=2"></script>
 
 
 </body>

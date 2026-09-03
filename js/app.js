@@ -12,6 +12,7 @@ function initApp() {
   loadPreferences();
   initSpeech();
   initSTT();
+  try { if (typeof initAuth === 'function') initAuth(); } catch(e){ console.warn('auth init error', e); }
   try { if (typeof initPdfStudio === 'function') initPdfStudio(); } catch(e){ console.warn('pdfStudio init error', e); }
   try { if (typeof initQuizModule === 'function') initQuizModule(); } catch(e){ console.warn('quizModule init error', e); }
   try { if (typeof initSignDetect === 'function') initSignDetect(); } catch(e){ console.warn('signDetect init error', e); }
@@ -36,6 +37,16 @@ function initApp() {
 function showSection(section) {
   // alias: progress -> dashboard
   if (section === 'progress') section = 'dashboard';
+  // Auth gate — require login for protected sections
+  try {
+    if (typeof checkAuthForSection === 'function' && !checkAuthForSection(section)) {
+      // Re-activate previous nav highlight
+      document.querySelectorAll('.nav-link').forEach(function(l){
+        l.classList.toggle('active', l.dataset.section === currentSection);
+      });
+      return;
+    }
+  } catch(e){}
   document.querySelectorAll('.nav-link').forEach(function(l) {
     l.classList.toggle('active', l.dataset.section === section);
   });
