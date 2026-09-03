@@ -86,6 +86,12 @@
 
 <body id="app-body">
 
+  <div class="immersive-bg" aria-hidden="true">
+    <div class="orb orb1"></div>
+    <div class="orb orb2"></div>
+    <div class="orb orb3"></div>
+  </div>
+  <div id="scroll-progress" aria-hidden="true"></div>
 
   <!-- =====================================================
        TOAST
@@ -402,18 +408,24 @@
 
     <div class="hero">
 
+      <div class="hero-orbs" aria-hidden="true">
+        <div class="hero-orb hero-orb1"></div>
+        <div class="hero-orb hero-orb2"></div>
+        <div class="hero-orb hero-orb3"></div>
+      </div>
+
       <div class="hero-content">
 
-        <div class="hero-badge">
+        <div class="hero-badge reveal">
 
-          <i class="fa-solid fa-universal-access"></i>
+          <i class="fa-solid fa-wand-magic-sparkles"></i>
 
-          Built for Every Learner
+          Built for Every Learner • WCAG AA • 3D + AI
 
         </div>
 
 
-        <h1>
+        <h1 class="reveal reveal-delay-1">
 
           Sign Language. Speech.
 
@@ -428,16 +440,16 @@
         </h1>
 
 
-        <p>
+        <p class="reveal reveal-delay-2">
 
           EduAccess empowers disabled learners through
           sign language avatars, text-to-speech,
-          real-time captions, and accessible design.
+          real-time captions, and accessible design — now with live webcam detection and immersive learning.
 
         </p>
 
 
-        <div class="hero-buttons">
+        <div class="hero-buttons reveal reveal-delay-3">
 
           <button
             class="btn-primary"
@@ -453,19 +465,47 @@
 
           <button
             class="btn-secondary"
+            onclick="showSection('detect')"
+          >
+
+            <i class="fa-solid fa-camera"></i>
+
+            Try Live Detect
+
+          </button>
+
+
+          <button
+            class="btn-secondary"
             onclick="showSection('dictionary')"
+            style="padding:14px 22px;"
           >
 
             <i class="fa-solid fa-book"></i>
 
-            Browse Dictionary
+            Dictionary
 
           </button>
 
         </div>
 
-        <div id="hero-auth-cta" style="margin-top:18px; display:none;"></div>
-        <div data-user-greeting style="margin-top:12px; font-weight:800; font-size:1rem; display:none;"></div>
+        <div id="hero-auth-cta" style="margin-top:18px; display:none;" class="reveal reveal-delay-3"></div>
+        <div data-user-greeting style="margin-top:12px; font-weight:800; font-size:1rem; display:none; color:rgba(255,255,255,0.95);" class="reveal reveal-delay-3"></div>
+
+        <div class="hero-glass reveal reveal-delay-3" aria-hidden="true">
+          <div class="hero-glass-item">
+            <div class="hero-glass-num">57</div>
+            <div class="hero-glass-label">Signs • 3D Avatar</div>
+          </div>
+          <div class="hero-glass-item" style="border-left:1px solid rgba(255,255,255,0.14); border-right:1px solid rgba(255,255,255,0.14);">
+            <div class="hero-glass-num">100%</div>
+            <div class="hero-glass-label">In-Browser • Private</div>
+          </div>
+          <div class="hero-glass-item">
+            <div class="hero-glass-num">WCAG</div>
+            <div class="hero-glass-label">AA • Dyslexia + Contrast</div>
+          </div>
+        </div>
 
       </div>
 
@@ -476,7 +516,7 @@
 
     <div class="features">
 
-      <div class="section-title">
+      <div class="section-title reveal">
 
         <h2>
           Accessibility Tools
@@ -489,10 +529,10 @@
       </div>
 
 
-      <div class="features-grid">
+      <div class="features-grid reveal reveal-delay-1">
 
 
-        <div class="feature-card">
+        <div class="feature-card" data-tilt>
 
           <div class="feature-icon indigo">
 
@@ -1998,6 +2038,8 @@
   <script src="js/signDetect.js?v=2"></script>
 
   <script src="js/auth.js"></script>
+
+  <script src="js/immersive.js"></script>
 
   <script src="js/app.js?v=2"></script>
 
