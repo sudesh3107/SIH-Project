@@ -3,7 +3,11 @@
    REMY 3D SIGN LANGUAGE AVATAR
    FULL VERSION
    T-POSE -> SIGNING POSITION -> FINGER ANIMATION
+   ES-MODULE VERSION (three@0.160.0 via importmap)
    ========================================================= */
+
+import * as THREE from 'three';
+import { FBXLoader } from 'three/addons/loaders/FBXLoader.js';
 
 
 /* =========================================================
@@ -399,90 +403,85 @@ function loadRemy() {
     );
 
 
-    import(
-        "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/loaders/FBXLoader.js"
-    )
-    .then(
-        function(module) {
+    try {
 
-            console.log(
-                "FBXLoader loaded"
-            );
+        const loader =
+            new FBXLoader();
 
 
-            const FBXLoader =
-                module.FBXLoader;
+        loader.load(
+
+            REMY_PATH,
 
 
-            const loader =
-                new FBXLoader();
+            function(model) {
+
+                onRemyLoaded(
+                    model
+                );
+            },
 
 
-            loader.load(
+            function(xhr) {
 
-                REMY_PATH,
+                if (
+                    xhr.total
+                ) {
 
-
-                function(model) {
-
-                    onRemyLoaded(
-                        model
-                    );
-                },
-
-
-                function(xhr) {
-
-                    if (
-                        xhr.total
-                    ) {
-
-                        const percent =
-                            Math.round(
-                                (
-                                    xhr.loaded /
-                                    xhr.total
-                                ) * 100
-                            );
-
-
-                        console.log(
-                            "Remy:",
-                            percent + "%"
+                    const percent =
+                        Math.round(
+                            (
+                                xhr.loaded /
+                                xhr.total
+                            ) * 100
                         );
-                    }
-                },
 
 
-                function(error) {
-
-                    console.error(
-                        "REMY LOAD ERROR",
-                        error
+                    console.log(
+                        "Remy:",
+                        percent + "%"
                     );
 
+                } else if (
+                    xhr.loaded
+                ) {
 
-                    showError(
-                        "Unable to load Remy.fbx"
+                    console.log(
+                        "Remy loaded bytes:",
+                        xhr.loaded
                     );
                 }
-            );
-        }
-    )
-    .catch(
-        function(error) {
-
-            console.error(
-                "FBXLoader import error:",
-                error
-            );
+            },
 
 
-            showError(
-                "FBXLoader failed."
-            );
-        }
-    );
+            function(error) {
+
+                console.error(
+                    "REMY LOAD ERROR",
+                    error
+                );
+
+
+                showError(
+                    "Unable to load models/Remy.fbx — serve the site over http (e.g. npx serve .) and check the file exists."
+                );
+            }
+        );
+
+    } catch (
+        error
+    ) {
+
+        console.error(
+            "FBXLoader init error:",
+            error
+        );
+
+
+        showError(
+            "3D loader failed to start."
+        );
+    }
 }
 
 
@@ -542,6 +541,12 @@ function onRemyLoaded(model) {
         avatar
     );
 
+    // Create procedural fallback if FBX bones missing
+    if (!hasFBXBones()) {
+        console.warn("FBX bones not found, creating procedural arm fallback");
+        createProceduralArm();
+    }
+
 
     saveRestPose(
         avatar
@@ -585,6 +590,56 @@ function onRemyLoaded(model) {
 
         },
         1200
+    );
+}
+
+
+/* =========================================================
+   BONE SUMMARY (debug helper — was missing, crashed ready)
+   ========================================================= */
+
+function printBoneSummary() {
+
+    console.log(
+        "----------------------------------------"
+    );
+
+    console.log(
+        "BONE SUMMARY"
+    );
+
+    console.log(
+        "RightArm:",
+        remyBones.rightArm
+            ? remyBones.rightArm.name
+            : "MISSING"
+    );
+
+    console.log(
+        "RightForeArm:",
+        remyBones.rightForeArm
+            ? remyBones.rightForeArm.name
+            : "MISSING"
+    );
+
+    console.log(
+        "RightHand:",
+        remyBones.rightHand
+            ? remyBones.rightHand.name
+            : "MISSING"
+    );
+
+    console.log(
+        "Right fingers (thumb/index/middle/ring/pinky):",
+        remyBones.rightThumb.length,
+        remyBones.rightIndex.length,
+        remyBones.rightMiddle.length,
+        remyBones.rightRing.length,
+        remyBones.rightPinky.length
+    );
+
+    console.log(
+        "----------------------------------------"
     );
 }
 
@@ -929,96 +984,101 @@ function inspectSkeleton(model) {
 
 
 /* =========================================================
-   FIND BONE
+   FIND BONE (Mixamo + generic naming support)
+   Handles: RightArm, mixamorig:RightArm,
+   mixamorigRightArm, mixamorig_RightArm, etc.
    ========================================================= */
 
-function findBone(
-    model,
-    name
-) {
+function normalizeBoneName(name) {
 
-    let result =
-        null;
+    return String(
+        name || ""
+    )
+        .toLowerCase()
+        .replace(
+            /^mixamorig[:_\s-]*/,
+            ""
+        )
+        .replace(
+            /[\s_:\-]+/g,
+            ""
+        );
+}
 
+function findBone(model, name) {
+    let result = null;
 
-    model.traverse(
-        function(object) {
+    const target =
+        normalizeBoneName(
+            name
+        );
 
-            if (
-                result
-            ) {
+    model.traverse(function(object) {
+        if (result) return;
+        if (!object.isBone) return;
 
-                return;
-            }
-
-
-            if (
-                object.isBone &&
-                object.name.toLowerCase() ===
-                name.toLowerCase()
-            ) {
-
-                result =
-                    object;
-            }
+        if (
+            normalizeBoneName(
+                object.name
+            ) === target
+        ) {
+            result = object;
         }
-    );
+    });
 
+    if (!result) {
+        console.warn(`Bone not found: ${name} (normalized: ${target})`);
+    }
 
     return result;
 }
 
 
 /* =========================================================
-   FIND FINGER
+   FIND FINGER (Mixamo RightHandIndex1 style + generics)
    ========================================================= */
 
-function findFinger(
-    model,
-    side,
-    finger
-) {
-
+function findFinger(model, side, finger) {
     const chain = [];
 
+    const sidePrefix = side === "right" ? "Right" : "Left";
 
-    const prefix =
-        side === "right"
-            ? "mixamorig:RightHand"
-            : "mixamorig:LeftHand";
+    // Candidate logical names — findBone() normalizes away
+    // the mixamorig prefix, so "RightHandIndex1" matches
+    // "mixamorigRightHandIndex1" in the Remy model.
+    const fingerNames = [
+        `${sidePrefix}Hand${finger}1`, `${sidePrefix}Hand${finger}2`, `${sidePrefix}Hand${finger}3`, `${sidePrefix}Hand${finger}4`,
+        `${sidePrefix}Hand${finger}01`, `${sidePrefix}Hand${finger}02`, `${sidePrefix}Hand${finger}03`, `${sidePrefix}Hand${finger}04`,
+        `${finger}1`, `${finger}2`, `${finger}3`, `${finger}4`
+    ];
 
+    const seen = new Set();
 
-    for (
-        let i = 1;
-        i <= 4;
-        i++
-    ) {
-
-        const name =
-            prefix +
-            finger +
-            i;
-
-
-        const bone =
-            findBone(
-                model,
-                name
-            );
-
-
-        if (
-            bone
-        ) {
-
-            chain.push(
-                bone
-            );
+    for (let i = 0; i < fingerNames.length; i++) {
+        const name = fingerNames[i];
+        const bone = findBone(model, name);
+        if (bone && !seen.has(bone.uuid)) {
+            seen.add(bone.uuid);
+            chain.push(bone);
+            if (chain.length >= 4) break;
         }
     }
 
+    // Sort by trailing number so 1->2->3->4 order is kept
+    // (findBone traversal order is not guaranteed).
+    chain.sort(function(a, b) {
+        const na = parseInt((a.name.match(/(\d+)$/) || [0, 0])[1], 10) || 0;
+        const nb = parseInt((b.name.match(/(\d+)$/) || [0, 0])[1], 10) || 0;
+        return na - nb;
+    });
 
-    return chain;
+    if (chain.length === 0) {
+        console.warn(`No finger bones found for ${side} ${finger}`);
+    } else {
+        console.log(`Found ${chain.length} bones for ${side} ${finger}:`, chain.map(b => b.name));
+    }
+
+    return chain.slice(0, 4);
 }
 
 
@@ -1028,156 +1088,70 @@ function findFinger(
 
 function buildBoneMap(model) {
 
+    console.log("Building bone map...");
+
     /* -----------------------------------------------------
        RIGHT ARM
        ----------------------------------------------------- */
 
-    remyBones.rightShoulder =
-        findBone(
-            model,
-            "mixamorig:RightShoulder"
-        );
-
-
-    remyBones.rightArm =
-        findBone(
-            model,
-            "mixamorig:RightArm"
-        );
-
-
-    remyBones.rightForeArm =
-        findBone(
-            model,
-            "mixamorig:RightForeArm"
-        );
-
-
-    remyBones.rightHand =
-        findBone(
-            model,
-            "mixamorig:RightHand"
-        );
-
+    remyBones.rightShoulder = findBone(model, "RightShoulder");
+    remyBones.rightArm = findBone(model, "RightArm");
+    remyBones.rightForeArm = findBone(model, "RightForeArm");
+    remyBones.rightHand = findBone(model, "RightHand");
 
     /* -----------------------------------------------------
        LEFT ARM
        ----------------------------------------------------- */
 
-    remyBones.leftShoulder =
-        findBone(
-            model,
-            "mixamorig:LeftShoulder"
-        );
-
-
-    remyBones.leftArm =
-        findBone(
-            model,
-            "mixamorig:LeftArm"
-        );
-
-
-    remyBones.leftForeArm =
-        findBone(
-            model,
-            "mixamorig:LeftForeArm"
-        );
-
-
-    remyBones.leftHand =
-        findBone(
-            model,
-            "mixamorig:LeftHand"
-        );
-
+    remyBones.leftShoulder = findBone(model, "LeftShoulder");
+    remyBones.leftArm = findBone(model, "LeftArm");
+    remyBones.leftForeArm = findBone(model, "LeftForeArm");
+    remyBones.leftHand = findBone(model, "LeftHand");
 
     /* -----------------------------------------------------
        RIGHT FINGERS
        ----------------------------------------------------- */
 
-    remyBones.rightThumb =
-        findFinger(
-            model,
-            "right",
-            "Thumb"
-        );
-
-
-    remyBones.rightIndex =
-        findFinger(
-            model,
-            "right",
-            "Index"
-        );
-
-
-    remyBones.rightMiddle =
-        findFinger(
-            model,
-            "right",
-            "Middle"
-        );
-
-
-    remyBones.rightRing =
-        findFinger(
-            model,
-            "right",
-            "Ring"
-        );
-
-
-    remyBones.rightPinky =
-        findFinger(
-            model,
-            "right",
-            "Pinky"
-        );
-
+    remyBones.rightThumb = findFinger(model, "right", "Thumb");
+    remyBones.rightIndex = findFinger(model, "right", "Index");
+    remyBones.rightMiddle = findFinger(model, "right", "Middle");
+    remyBones.rightRing = findFinger(model, "right", "Ring");
+    remyBones.rightPinky = findFinger(model, "right", "Pinky");
 
     /* -----------------------------------------------------
        LEFT FINGERS
        ----------------------------------------------------- */
 
-    remyBones.leftThumb =
-        findFinger(
-            model,
-            "left",
-            "Thumb"
-        );
+    remyBones.leftThumb = findFinger(model, "left", "Thumb");
+    remyBones.leftIndex = findFinger(model, "left", "Index");
+    remyBones.leftMiddle = findFinger(model, "left", "Middle");
+    remyBones.leftRing = findFinger(model, "left", "Ring");
+    remyBones.leftPinky = findFinger(model, "left", "Pinky");
 
+    // Verify critical bones
+    const criticalBones = {
+        'Right Arm': remyBones.rightArm,
+        'Right ForeArm': remyBones.rightForeArm,
+        'Right Hand': remyBones.rightHand,
+        'Left Arm': remyBones.leftArm,
+        'Left ForeArm': remyBones.leftForeArm,
+        'Left Hand': remyBones.leftHand
+    };
 
-    remyBones.leftIndex =
-        findFinger(
-            model,
-            "left",
-            "Index"
-        );
+    let missingCritical = [];
+    for (const [name, bone] of Object.entries(criticalBones)) {
+        if (!bone) missingCritical.push(name);
+    }
 
-
-    remyBones.leftMiddle =
-        findFinger(
-            model,
-            "left",
-            "Middle"
-        );
-
-
-    remyBones.leftRing =
-        findFinger(
-            model,
-            "left",
-            "Ring"
-        );
-
-
-    remyBones.leftPinky =
-        findFinger(
-            model,
-            "left",
-            "Pinky"
-        );
+    if (missingCritical.length > 0) {
+        console.error("MISSING CRITICAL BONES:", missingCritical);
+        console.log("Available bones in model:");
+        model.traverse(obj => {
+            if (obj.isBone) console.log("  -", obj.name);
+        });
+    } else {
+        console.log("All critical bones found successfully!");
+    }
 }
 
 
@@ -1471,376 +1445,78 @@ function rotateBoneRelative(
 
 
 /* =========================================================
-   SIGNING ARM
-   =========================================================
-
-   This is the important part.
-
-   T-pose:
-       arm horizontal
-
-   Signing:
-       arm comes down
-       forearm bends
-       hand comes forward
-
+   CHECK IF FBX BONES ARE AVAILABLE
    ========================================================= */
 
-function applySigningArm(
-    side,
-    progress
-) {
+function hasFBXBones() {
+    return remyBones.rightArm && remyBones.rightForeArm && remyBones.rightHand;
+}
 
-    if (
-        side === "right"
-    ) {
+/* =========================================================
+   APPLY SIGNING ARM (FBX or Procedural)
+   ========================================================= */
 
-        /*
-           RIGHT UPPER ARM
+function applySigningArm(side, progress) {
+    if (side !== "right") return;
 
-           Move the arm down from
-           the T-pose.
-        */
+    if (hasFBXBones()) {
+        rotateBoneRelative(remyBones.rightArm, 0.00, 0.25, -1.15, progress);
+        rotateBoneRelative(remyBones.rightForeArm, 0.15, -0.35, -0.55, progress);
+        rotateBoneRelative(remyBones.rightHand, -0.25, 0.25, -0.15, progress);
+    }
+}
 
-        rotateBoneRelative(
+/* =========================================================
+   FINGER BEND (FBX only)
+   ========================================================= */
 
-            remyBones.rightArm,
+function bendFinger(finger, amount, progress) {
+    if (!finger || finger.length === 0) return;
 
-            0.00,
+    const eased = easeInOut(progress);
 
-            0.25,
+    finger.forEach(function(bone, index) {
+        const rest = restPose.get(bone.uuid);
+        if (!rest) return;
 
-            -1.15,
+        const strength = 1 - index * 0.08;
+        const bend = amount * strength * eased;
 
-            progress
-        );
+        const q = new THREE.Quaternion();
+        const euler = new THREE.Euler(0, 0, bend, "XYZ");
+        q.setFromEuler(euler);
 
+        bone.quaternion.copy(rest.quaternion);
+        bone.quaternion.multiply(q);
+    });
+}
 
-        /*
-           RIGHT FOREARM
+/* =========================================================
+   APPLY HAND POSE (FBX or Procedural)
+   ========================================================= */
 
-           Bend elbow.
-        */
+function applyHandPose(side, pose, progress) {
+    if (!pose || side !== "right") return;
 
-        rotateBoneRelative(
+    if (hasFBXBones()) {
+        bendFinger(remyBones.rightThumb, pose.thumb || 0, progress);
+        bendFinger(remyBones.rightIndex, pose.index || 0, progress);
+        bendFinger(remyBones.rightMiddle, pose.middle || 0, progress);
+        bendFinger(remyBones.rightRing, pose.ring || 0, progress);
+        bendFinger(remyBones.rightPinky, pose.pinky || 0, progress);
+    }
+}
 
-            remyBones.rightForeArm,
+/* =========================================================
+   APPLY COMPLETE SIGN (FBX or Procedural)
+   ========================================================= */
 
-            0.15,
-
-            -0.35,
-
-            -0.55,
-
-            progress
-        );
-
-
-        /*
-           RIGHT HAND
-
-           Bring palm toward front.
-        */
-
-        rotateBoneRelative(
-
-            remyBones.rightHand,
-
-            -0.25,
-
-            0.25,
-
-            -0.15,
-
-            progress
-        );
-
-
+function applySignPose(pose, progress) {
+    if (hasFBXBones()) {
+        applySigningArm("right", progress);
+        if (pose && pose.right) applyHandPose("right", pose.right, progress);
     } else {
-
-        /*
-           LEFT SIDE
-           kept mostly neutral.
-        */
-
-        rotateBoneRelative(
-
-            remyBones.leftArm,
-
-            0.00,
-
-            -0.10,
-
-            0.15,
-
-            progress
-        );
-
-
-        rotateBoneRelative(
-
-            remyBones.leftForeArm,
-
-            0.00,
-
-            0.00,
-
-            0.00,
-
-            progress
-        );
-
-
-        rotateBoneRelative(
-
-            remyBones.leftHand,
-
-            0.00,
-
-            0.00,
-
-            0.00,
-
-            progress
-        );
-    }
-}
-
-
-/* =========================================================
-   FINGER BEND
-   ========================================================= */
-
-function bendFinger(
-    finger,
-    amount,
-    progress
-) {
-
-    if (
-        !finger ||
-        finger.length === 0
-    ) {
-
-        return;
-    }
-
-
-    const eased =
-        easeInOut(
-            progress
-        );
-
-
-    finger.forEach(
-        function(bone, index) {
-
-            const rest =
-                restPose.get(
-                    bone.uuid
-                );
-
-
-            if (
-                !rest
-            ) {
-
-                return;
-            }
-
-
-            const strength =
-                1 -
-                index * 0.08;
-
-
-            const bend =
-                amount *
-                strength *
-                eased;
-
-
-            /*
-               Primary finger bend.
-            */
-
-            const q =
-                new THREE.Quaternion();
-
-
-            const euler =
-                new THREE.Euler(
-                    0,
-                    0,
-                    bend,
-                    "XYZ"
-                );
-
-
-            q.setFromEuler(
-                euler
-            );
-
-
-            bone.quaternion.copy(
-                rest.quaternion
-            );
-
-
-            bone.quaternion.multiply(
-                q
-            );
-        }
-    );
-}
-
-
-/* =========================================================
-   APPLY HAND POSE
-   ========================================================= */
-
-function applyHandPose(
-    side,
-    pose,
-    progress
-) {
-
-    if (
-        !pose
-    ) {
-
-        return;
-    }
-
-
-    if (
-        side === "right"
-    ) {
-
-        bendFinger(
-            remyBones.rightThumb,
-            pose.thumb || 0,
-            progress
-        );
-
-
-        bendFinger(
-            remyBones.rightIndex,
-            pose.index || 0,
-            progress
-        );
-
-
-        bendFinger(
-            remyBones.rightMiddle,
-            pose.middle || 0,
-            progress
-        );
-
-
-        bendFinger(
-            remyBones.rightRing,
-            pose.ring || 0,
-            progress
-        );
-
-
-        bendFinger(
-            remyBones.rightPinky,
-            pose.pinky || 0,
-            progress
-        );
-
-    } else {
-
-        bendFinger(
-            remyBones.leftThumb,
-            pose.thumb || 0,
-            progress
-        );
-
-
-        bendFinger(
-            remyBones.leftIndex,
-            pose.index || 0,
-            progress
-        );
-
-
-        bendFinger(
-            remyBones.leftMiddle,
-            pose.middle || 0,
-            progress
-        );
-
-
-        bendFinger(
-            remyBones.leftRing,
-            pose.ring || 0,
-            progress
-        );
-
-
-        bendFinger(
-            remyBones.leftPinky,
-            pose.pinky || 0,
-            progress
-        );
-    }
-}
-
-
-/* =========================================================
-   APPLY COMPLETE SIGN
-   ========================================================= */
-
-function applySignPose(
-    pose,
-    progress
-) {
-
-    /*
-       First bring the arm out of
-       the T-pose.
-    */
-
-    applySigningArm(
-        "right",
-        progress
-    );
-
-
-    /*
-       Then create hand shape.
-    */
-
-    if (
-        pose &&
-        pose.right
-    ) {
-
-        applyHandPose(
-            "right",
-            pose.right,
-            progress
-        );
-    }
-
-
-    /*
-       Left hand stays relaxed.
-    */
-
-    if (
-        pose &&
-        pose.left
-    ) {
-
-        applyHandPose(
-            "left",
-            pose.left,
-            progress
-        );
+        applyProceduralSign(pose, progress);
     }
 }
 
@@ -2438,26 +2114,34 @@ function playSignAnimation() {
 
 
     /*
-       Read existing app.js state.
+       Read existing app.js state (via window, module-safe).
     */
 
     try {
 
+        const w =
+            typeof window !==
+            "undefined"
+                ? window
+                : null;
+
+
         if (
-            typeof SIGN_DATA !==
+            w &&
+            typeof w.SIGN_DATA !==
             "undefined" &&
 
-            typeof currentLesson !==
+            typeof w.currentLesson !==
             "undefined" &&
 
-            typeof currentSignIndex !==
+            typeof w.currentSignIndex !==
             "undefined"
         ) {
 
             const lesson =
-                SIGN_DATA.lessons &&
-                SIGN_DATA.lessons[
-                    currentLesson
+                w.SIGN_DATA.lessons &&
+                w.SIGN_DATA.lessons[
+                    w.currentLesson
                 ];
 
 
@@ -2465,13 +2149,13 @@ function playSignAnimation() {
                 lesson &&
                 lesson.signs &&
                 lesson.signs[
-                    currentSignIndex
+                    w.currentSignIndex
                 ]
             ) {
 
                 key =
                     lesson.signs[
-                        currentSignIndex
+                        w.currentSignIndex
                     ];
             }
         }
@@ -2539,7 +2223,7 @@ function updateSignAnimation() {
        current animation position.
     */
 
-    restoreBody();
+    restoreAll();
 
 
     applySignPose(
@@ -2548,21 +2232,10 @@ function updateSignAnimation() {
     );
 
 
-    if (
-        progress >= 1
-    ) {
-
-        signAnimation.active =
-            false;
-
-
-        restoreBody();
-
-
-        applySignPose(
-            signAnimation.pose,
-            1
-        );
+    if (progress >= 1) {
+        signAnimation.active = false;
+        restoreAll();
+        applySignPose(signAnimation.pose, 1);
     }
 }
 
@@ -2641,21 +2314,19 @@ function startFullBodyTest() {
 /* =========================================================
    UPDATE FULL BODY TEST
    ========================================================= */
+function restoreAll() {
+    if (hasFBXBones()) {
+        restoreBody();
+    } else {
+        resetProceduralArm();
+    }
+}
 
 function updateFullBodyTest() {
 
-    if (
-        !handTest.active
-    ) {
+    if (!handTest.active) return;
 
-        return;
-    }
-
-
-    const elapsed =
-        performance.now() -
-        handTest.startTime;
-
+    const elapsed = performance.now() - handTest.startTime;
 
     /* =====================================================
        PHASE 1
@@ -2663,27 +2334,12 @@ function updateFullBodyTest() {
        0 - 1500ms
        ===================================================== */
 
-    if (
-        elapsed < 1500
-    ) {
-
-        const p =
-            elapsed /
-            1500;
-
-
-        restoreBody();
-
-
-        applySigningArm(
-            "right",
-            p
-        );
-
-
+    if (elapsed < 1500) {
+        const p = elapsed / 1500;
+        restoreAll();
+        applySigningArm("right", p);
         return;
     }
-
 
     /* =====================================================
        PHASE 2
@@ -2691,46 +2347,13 @@ function updateFullBodyTest() {
        1500 - 2500
        ===================================================== */
 
-    if (
-        elapsed < 2500
-    ) {
-
-        const p =
-            (
-                elapsed -
-                1500
-            ) /
-            1000;
-
-
-        restoreBody();
-
-
-        applySigningArm(
-            "right",
-            1
-        );
-
-
-        applyHandPose(
-
-            "right",
-
-            {
-                thumb: -0.90,
-                index: -2.0,
-                middle: -2.0,
-                ring: -2.0,
-                pinky: -2.0
-            },
-
-            p
-        );
-
-
+    if (elapsed < 2500) {
+        const p = (elapsed - 1500) / 1000;
+        restoreAll();
+        applySigningArm("right", 1);
+        applyHandPose("right", { thumb: -0.90, index: -2.0, middle: -2.0, ring: -2.0, pinky: -2.0 }, p);
         return;
     }
-
 
     /* =====================================================
        PHASE 3
@@ -2738,46 +2361,13 @@ function updateFullBodyTest() {
        2500 - 3500
        ===================================================== */
 
-    if (
-        elapsed < 3500
-    ) {
-
-        const p =
-            (
-                elapsed -
-                2500
-            ) /
-            1000;
-
-
-        restoreBody();
-
-
-        applySigningArm(
-            "right",
-            1
-        );
-
-
-        applyHandPose(
-
-            "right",
-
-            {
-                thumb: 0,
-                index: 0,
-                middle: 0,
-                ring: 0,
-                pinky: 0
-            },
-
-            p
-        );
-
-
+    if (elapsed < 3500) {
+        const p = (elapsed - 2500) / 1000;
+        restoreAll();
+        applySigningArm("right", 1);
+        applyHandPose("right", { thumb: 0, index: 0, middle: 0, ring: 0, pinky: 0 }, p);
         return;
     }
-
 
     /* =====================================================
        PHASE 4
@@ -2785,73 +2375,26 @@ function updateFullBodyTest() {
        3500 - 5000
        ===================================================== */
 
-    if (
-        elapsed < 5000
-    ) {
-
-        const p =
-            (
-                elapsed -
-                3500
-            ) /
-            1500;
-
-
-        /*
-           Reverse animation.
-        */
-
-        restoreBody();
-
-
-        applySigningArm(
-            "right",
-            1 - p
-        );
-
-
+    if (elapsed < 5000) {
+        const p = (elapsed - 3500) / 1500;
+        restoreAll();
+        applySigningArm("right", 1 - p);
         return;
     }
-
 
     /* =====================================================
        FINISH
        ===================================================== */
 
-    handTest.active =
-        false;
+    handTest.active = false;
+    restoreAll();
 
+    console.log("FULL BODY TEST FINISHED");
 
-    restoreBody();
-
-
-    console.log(
-        "FULL BODY TEST FINISHED"
-    );
-
-
-    /*
-       Return to selected sign
-       after test.
-    */
-
-    if (
-        currentSignKey
-    ) {
-
-        setTimeout(
-            function() {
-
-                setSign(
-                    currentSignKey
-                );
-
-            },
-            300
-        );
+    if (currentSignKey) {
+        setTimeout(function() { setSign(currentSignKey); }, 300);
     }
 }
-
 
 /* =========================================================
    FBX ANIMATIONS
@@ -3336,125 +2879,173 @@ function resizeAvatar() {
 
 
 /* =========================================================
-   PRINT BONE SUMMARY
+   PROCEDURAL FALLBACK ARM (for when FBX bones missing)
    ========================================================= */
 
-function printBoneSummary() {
+const proceduralArm = {
+    rightArm: null,
+    rightForeArm: null,
+    rightHand: null,
+    rightFingers: { thumb: [], index: [], middle: [], ring: [], pinky: [] },
+    armGroup: null,
+    created: false,
+    // Rest pose rotations for reset
+    restRotations: {}
+};
 
-    console.log(
-        "========================================"
-    );
+function resetProceduralArm() {
+    if (!proceduralArm.created) return;
+    
+    // Reset to T-pose
+    proceduralArm.rightArm.rotation.set(0, 0, Math.PI / 2);
+    proceduralArm.rightForeArm.rotation.set(0, 0, 0);
+    proceduralArm.rightHand.rotation.set(0, 0, 0);
+    
+    Object.values(proceduralArm.rightFingers).forEach(finger => {
+        finger.forEach(segment => {
+            segment.rotation.set(0, 0, 0);
+        });
+    });
+}
 
-    console.log(
-        "ARM BONES"
-    );
+function createProceduralArm() {
+    if (proceduralArm.created) return;
 
-    console.log(
-        "========================================"
-    );
+    const armGroup = new THREE.Group();
+    armGroup.name = "ProceduralArm";
+    proceduralArm.armGroup = armGroup;
 
+    // Upper arm
+    const upperGeometry = new THREE.CapsuleGeometry(0.08, 0.35, 4, 8);
+    const armMaterial = new THREE.MeshStandardMaterial({
+        color: 0xffdbac,
+        roughness: 0.7,
+        metalness: 0.1
+    });
 
-    console.log(
-        "Right Arm:",
-        remyBones.rightArm
-            ? remyBones.rightArm.name
-            : "NOT FOUND"
-    );
+    proceduralArm.rightArm = new THREE.Mesh(upperGeometry, armMaterial);
+    proceduralArm.rightArm.position.y = 0.175;
+    proceduralArm.rightArm.castShadow = true;
+    armGroup.add(proceduralArm.rightArm);
 
+    // Forearm
+    const foreGeometry = new THREE.CapsuleGeometry(0.07, 0.3, 4, 8);
+    proceduralArm.rightForeArm = new THREE.Mesh(foreGeometry, armMaterial);
+    proceduralArm.rightForeArm.position.y = -0.35;
+    proceduralArm.rightForeArm.castShadow = true;
+    proceduralArm.rightArm.add(proceduralArm.rightForeArm);
 
-    console.log(
-        "Right ForeArm:",
-        remyBones.rightForeArm
-            ? remyBones.rightForeArm.name
-            : "NOT FOUND"
-    );
+    // Hand
+    const handGeometry = new THREE.BoxGeometry(0.12, 0.05, 0.18);
+    proceduralArm.rightHand = new THREE.Mesh(handGeometry, armMaterial);
+    proceduralArm.rightHand.position.y = -0.32;
+    proceduralArm.rightHand.castShadow = true;
+    proceduralArm.rightForeArm.add(proceduralArm.rightHand);
 
+    // Fingers (simple boxes)
+    const fingerMaterial = new THREE.MeshStandardMaterial({
+        color: 0xffdbac,
+        roughness: 0.7,
+        metalness: 0.1
+    });
 
-    console.log(
-        "Right Hand:",
-        remyBones.rightHand
-            ? remyBones.rightHand.name
-            : "NOT FOUND"
-    );
+    const fingerNames = ['thumb', 'index', 'middle', 'ring', 'pinky'];
+    const fingerPositions = {
+        thumb: { x: 0.07, y: 0, z: 0.04, rotZ: -0.5 },
+        index: { x: 0.035, y: 0, z: 0.08, rotZ: 0 },
+        middle: { x: 0, y: 0, z: 0.09, rotZ: 0 },
+        ring: { x: -0.035, y: 0, z: 0.08, rotZ: 0 },
+        pinky: { x: -0.07, y: 0, z: 0.06, rotZ: 0 }
+    };
 
+    fingerNames.forEach(name => {
+        const fingerGroup = new THREE.Group();
+        const pos = fingerPositions[name];
 
-    console.log(
-        "Left Arm:",
-        remyBones.leftArm
-            ? remyBones.leftArm.name
-            : "NOT FOUND"
-    );
+        for (let i = 0; i < 3; i++) {
+            const segGeometry = new THREE.CapsuleGeometry(0.018, 0.055, 4, 8);
+            const segment = new THREE.Mesh(segGeometry, fingerMaterial);
+            segment.position.y = -0.0275 - i * 0.055;
+            segment.castShadow = true;
+            fingerGroup.add(segment);
+            proceduralArm.rightFingers[name].push(segment);
+        }
 
+        fingerGroup.position.set(pos.x, -0.025, pos.z);
+        fingerGroup.rotation.z = pos.rotZ;
+        proceduralArm.rightHand.add(fingerGroup);
+    });
 
-    console.log(
-        "Left ForeArm:",
-        remyBones.leftForeArm
-            ? remyBones.leftForeArm.name
-            : "NOT FOUND"
-    );
+    // Position arm at shoulder - try to use avatar position if available
+    let shoulderX = -0.25;
+    let shoulderY = 1.4;
+    let shoulderZ = 0;
 
+    if (avatar) {
+        // Try to find right shoulder position
+        const shoulderBone = findBone(avatar, "RightShoulder");
+        if (shoulderBone) {
+            const worldPos = new THREE.Vector3();
+            shoulderBone.getWorldPosition(worldPos);
+            shoulderX = worldPos.x;
+            shoulderY = worldPos.y;
+            shoulderZ = worldPos.z;
+        } else {
+            // Fallback: estimate from model bounds
+            const box = new THREE.Box3().setFromObject(avatar);
+            const size = box.getSize(new THREE.Vector3());
+            shoulderX = -size.x * 0.35;
+            shoulderY = size.y * 0.5;
+            shoulderZ = 0;
+        }
+    }
 
-    console.log(
-        "Left Hand:",
-        remyBones.leftHand
-            ? remyBones.leftHand.name
-            : "NOT FOUND"
-    );
+    armGroup.position.set(shoulderX, shoulderY, shoulderZ);
+    armGroup.rotation.z = Math.PI / 2;
 
+    scene.add(armGroup);
+    proceduralArm.created = true;
 
-    console.log(
-        "========================================"
-    );
+    console.log("Procedural arm created as fallback at:", shoulderX, shoulderY, shoulderZ);
+}
 
+function applyProceduralSign(pose, progress) {
+    if (!proceduralArm.created) createProceduralArm();
 
-    console.log(
-        "FINGER BONES"
-    );
+    const eased = easeInOut(progress);
 
+    // Arm comes down from T-pose
+    proceduralArm.rightArm.rotation.z = Math.PI / 2 - 1.15 * eased;
+    proceduralArm.rightArm.rotation.y = 0.25 * eased;
 
-    console.log(
-        "Right Thumb:",
-        remyBones.rightThumb.map(
-            b => b.name
-        )
-    );
+    // Forearm bends
+    proceduralArm.rightForeArm.rotation.x = 0.15 * eased;
+    proceduralArm.rightForeArm.rotation.y = -0.35 * eased;
+    proceduralArm.rightForeArm.rotation.z = -0.55 * eased;
 
+    // Hand rotates
+    proceduralArm.rightHand.rotation.x = -0.25 * eased;
+    proceduralArm.rightHand.rotation.y = 0.25 * eased;
+    proceduralArm.rightHand.rotation.z = -0.15 * eased;
 
-    console.log(
-        "Right Index:",
-        remyBones.rightIndex.map(
-            b => b.name
-        )
-    );
+    // Finger bending
+    if (pose && pose.right) {
+        const fingerBends = {
+            thumb: pose.right.thumb || 0,
+            index: pose.right.index || 0,
+            middle: pose.right.middle || 0,
+            ring: pose.right.ring || 0,
+            pinky: pose.right.pinky || 0
+        };
 
-
-    console.log(
-        "Right Middle:",
-        remyBones.rightMiddle.map(
-            b => b.name
-        )
-    );
-
-
-    console.log(
-        "Right Ring:",
-        remyBones.rightRing.map(
-            b => b.name
-        )
-    );
-
-
-    console.log(
-        "Right Pinky:",
-        remyBones.rightPinky.map(
-            b => b.name
-        )
-    );
-
-
-    console.log(
-        "========================================"
-    );
+        Object.keys(fingerBends).forEach(name => {
+            const amount = fingerBends[name];
+            proceduralArm.rightFingers[name].forEach((segment, idx) => {
+                const strength = 1 - idx * 0.15;
+                segment.rotation.x = amount * strength * eased;
+            });
+        });
+    }
 }
 
 
@@ -3722,18 +3313,56 @@ function dispose() {
 
 /* =========================================================
    GLOBAL API
+   (module-safe: never clobber app.js UI handlers)
    ========================================================= */
 
 window.setSign =
     setSign;
 
 
-window.playSignAnimation =
+// Avatar-level replay (reads lesson state from window).
+// Exposed under a distinct name so it cannot overwrite
+// app.js window.playSignAnimation (which adds flash UI).
+window.playAvatarSignAnimation =
     playSignAnimation;
+
+
+// Backward compat: only provide window.playSignAnimation
+// if app.js hasn't defined its own UI version yet.
+if (
+    !window.playSignAnimation
+) {
+
+    window.playSignAnimation =
+        playSignAnimation;
+}
 
 
 window.focusCamera =
     resetCamera;
+
+
+window.resetCamera =
+    resetCamera;
+
+
+window.resizeAvatar =
+    resizeAvatar;
+
+
+window.initAvatar =
+    init;
+
+
+// app.js calls bare init() — expose it for compat.
+// (Modules don't create globals automatically.)
+if (
+    !window.init
+) {
+
+    window.init =
+        init;
+}
 
 
 window.dispose =
@@ -3788,6 +3417,49 @@ window.animateHandToPose =
         signAnimation.pose =
             pose;
     };
+
+
+// Debug functions
+window.debugAvatar = function() {
+    console.log("=== Avatar Debug Info ===");
+    console.log("remyLoaded:", remyLoaded);
+    console.log("hasFBXBones:", hasFBXBones());
+    console.log("signAnimation:", signAnimation);
+    console.log("handTest:", handTest);
+    console.log("currentSignKey:", currentSignKey);
+    console.log("currentSignPose:", currentSignPose);
+    console.log("proceduralArm.created:", proceduralArm.created);
+    console.log("avatar:", avatar ? "loaded" : "not loaded");
+    if (avatar) {
+        console.log("avatar position:", avatar.position);
+        console.log("avatar scale:", avatar.scale);
+    }
+    console.log("scene children:", scene ? scene.children.length : 0);
+};
+
+window.debugBones = function() {
+    if (!avatar) {
+        console.log("Avatar not loaded yet");
+        return;
+    }
+    console.log("=== Bone Map ===");
+    console.log("Right Arm:", remyBones.rightArm ? remyBones.rightArm.name : "MISSING");
+    console.log("Right ForeArm:", remyBones.rightForeArm ? remyBones.rightForeArm.name : "MISSING");
+    console.log("Right Hand:", remyBones.rightHand ? remyBones.rightHand.name : "MISSING");
+    console.log("Left Arm:", remyBones.leftArm ? remyBones.leftArm.name : "MISSING");
+    console.log("Left ForeArm:", remyBones.leftForeArm ? remyBones.leftForeArm.name : "MISSING");
+    console.log("Left Hand:", remyBones.leftHand ? remyBones.leftHand.name : "MISSING");
+    console.log("Right Thumb:", remyBones.rightThumb.length, "bones");
+    console.log("Right Index:", remyBones.rightIndex.length, "bones");
+    console.log("Right Middle:", remyBones.rightMiddle.length, "bones");
+    console.log("Right Ring:", remyBones.rightRing.length, "bones");
+    console.log("Right Pinky:", remyBones.rightPinky.length, "bones");
+};
+
+window.testSign = function(key) {
+    setSign(key || "A");
+    console.log("Testing sign:", key || "A");
+};
 
 
 /* =========================================================

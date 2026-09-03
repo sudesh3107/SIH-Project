@@ -64,24 +64,18 @@
 
 
   <!-- =====================================================
-       THREE.JS
-  ====================================================== -->
-
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/0.160.0/three.min.js"></script>
-
-
-  <!-- =====================================================
-       IMPORT MAP
-
-       FBXLoader imports "three".
-       This tells the browser where "three" is.
+       THREE.JS (ES modules via importmap)
+       NOTE: three r150+ removed the UMD three.min.js build,
+       so we must use modules. avatar3d.js is a module that
+       imports 'three' and 'three/addons/' below.
   ====================================================== -->
 
   <script type="importmap">
 
   {
     "imports": {
-      "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"
+      "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+      "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
     }
   }
 
@@ -1107,10 +1101,13 @@
 
 
   <!-- =====================================================
-       3D AVATAR
+       3D AVATAR (ES module — needs importmap above)
   ====================================================== -->
 
-  <script src="js/avatar3d.js"></script>
+  <script
+    type="module"
+    src="js/avatar3d.js"
+  ></script>
 
 
   <!-- =====================================================

@@ -12,7 +12,17 @@ function initApp() {
   loadPreferences();
   initSpeech();
   initSTT();
-  init();
+  // avatar3d.js is an ES module (deferred). It exposes window.initAvatar.
+  // DOMContentLoaded fires after modules, so it should exist — fall back
+  // to bare init() for older cached copies.
+  try {
+    if (typeof window.initAvatar === 'function') window.initAvatar();
+    else if (typeof window.init === 'function') window.init();
+    else if (typeof init === 'function') init();
+    else console.warn('Avatar init not found (module may have failed to load)');
+  } catch (e) {
+    console.warn('Avatar init error:', e);
+  }
   buildLessonTabs();
   buildDictionary();
   buildProgress();
@@ -33,7 +43,15 @@ function showSection(section) {
     currentSignIndex = 0;
     buildLessonTabs();
     loadCurrentLessonSigns();
-    setTimeout(function() { focusCamera(); }, 100);
+    // Container was display:none until now, so force a resize + camera
+    // fix once layout is available.
+    setTimeout(function() {
+      try {
+        if (typeof window.resizeAvatar === 'function') window.resizeAvatar();
+        if (typeof window.focusCamera === 'function') window.focusCamera();
+        else if (typeof window.resetCamera === 'function') window.resetCamera();
+      } catch (e) { console.warn('Camera fix error:', e); }
+    }, 100);
   }
   if (section === 'dictionary') buildDictionary();
   if (section === 'progress') buildProgress();
@@ -70,7 +88,10 @@ function renderSignDisplay(key) {
   if (nameEl) nameEl.textContent = key;
   if (dispEl) dispEl.textContent = key;
   if (descEl) descEl.textContent = data.desc;
-  setSign(key);
+  try {
+    if (typeof window.setSign === 'function') window.setSign(key);
+    else if (typeof setSign === 'function') setSign(key);
+  } catch (e) { console.warn('setSign error:', e); }
 }
 
 function navigateSign(dir) {
@@ -86,7 +107,12 @@ function playSignAnimation() {
   if (!lesson) return;
   var signs = lesson.signs;
   var key = signs[currentSignIndex];
-  if (key) setSign(key);
+  // Prefer the avatar module's replay (reads lesson state itself),
+  // fall back to setSign for older copies.
+  try {
+    if (key && typeof window.setSign === 'function') window.setSign(key);
+    else if (typeof window.playAvatarSignAnimation === 'function') window.playAvatarSignAnimation();
+  } catch (e) { console.warn('playSignAnimation error:', e); }
   var container = document.getElementById('avatar-container');
   if (container) {
     container.classList.add('sign-flash');
@@ -132,7 +158,7 @@ function buildDictionary() {
     var card = document.createElement('div');
     card.className = 'sign-card';
     card.innerHTML = '<div class="sign-letter">' + item.key + '</div><div class="sign-word">' + item.key + '</div><div class="sign-desc">' + item.data.desc + '</div>';
-    card.onclick = function() { setSign(item.key); showSection('learn'); showToast('Showing sign: ' + item.key, 'info'); };
+    card.onclick = function() { try { if (typeof window.setSign === 'function') window.setSign(item.key); } catch (e) {} showSection('learn'); showToast('Showing sign: ' + item.key, 'info'); };
     grid.appendChild(card);
   });
 
