@@ -157,7 +157,20 @@ function easeInOut(t) {
    INIT
    ========================================================= */
 
+let initialized = false;
+
 function init() {
+
+    if (initialized) {
+
+        console.warn(
+            "EduAccess: init() already called, skipping duplicate."
+        );
+
+        return;
+    }
+
+    initialized = true;
 
     console.log(
         "========================================"
@@ -2330,7 +2343,7 @@ function getSignPose(key) {
 function setSign(key) {
 
     console.log(
-        "EduBridge: setSign() ->",
+        "EduAccess: setSign() ->",
         key
     );
 

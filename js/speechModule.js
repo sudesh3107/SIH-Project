@@ -56,7 +56,7 @@ function initSTT() {
 
 function loadSampleText(type) {
   var samples = {
-    greeting: "Welcome to EduBridge! We are so glad you are here. Learning sign language is a wonderful way to connect with others and make communication accessible for everyone.",
+    greeting: "Welcome to EduAccess! We are so glad you are here. Learning sign language is a wonderful way to connect with others and make communication accessible for everyone.",
     lesson: "Today's lesson is about the ASL alphabet. Each letter has a unique hand shape. Practice each sign carefully and try to remember the hand positions.",
     story: "Once upon a time, there was a young girl named Maya who loved learning new things. Every day, she practiced her sign language with her friends at the community center.",
     news: "In a groundbreaking development, schools across the country are now integrating sign language into their core curriculum for all students."
