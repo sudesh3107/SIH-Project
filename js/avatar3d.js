@@ -1456,13 +1456,20 @@ function hasFBXBones() {
    APPLY SIGNING ARM (FBX or Procedural)
    ========================================================= */
 
-function applySigningArm(side, progress) {
+function applySigningArm(side, progress, wrist) {
     if (side !== "right") return;
 
     if (hasFBXBones()) {
         rotateBoneRelative(remyBones.rightArm, 0.00, 0.25, -1.15, progress);
         rotateBoneRelative(remyBones.rightForeArm, 0.15, -0.35, -0.55, progress);
-        rotateBoneRelative(remyBones.rightHand, -0.25, 0.25, -0.15, progress);
+        const w = wrist || [0, 0, 0];
+        rotateBoneRelative(
+            remyBones.rightHand,
+            -0.25 + (w[0] || 0),
+            0.25 + (w[1] || 0),
+            -0.15 + (w[2] || 0),
+            progress
+        );
     }
 }
 
@@ -1483,9 +1490,9 @@ function applySigningArm(side, progress) {
    ========================================================= */
 
 // Max flexion (radians) per joint at full curl.
-// [base/MCP, PIP, DIP, tip] — base moves least because it
-// carries the whole finger; middle joints do most work.
-const FINGER_CURL_MAX = [0.55, 1.15, 0.95, 0.65];
+// [base/MCP, PIP, DIP, tip] — a tight fist needs ~250 deg of
+// total curl; middle joints do most of the work.
+const FINGER_CURL_MAX = [1.05, 1.55, 1.10, 0.70];
 
 // Thumb is oriented differently — smaller curl plus a
 // touch of opposition so it rests across the fingers
@@ -1519,7 +1526,20 @@ function poseToCurl(amount) {
     );
 }
 
-function bendFinger(finger, amount, progress, isThumb) {
+// Max sideways fan (radians) at |spread| = 1. Applied ONLY to
+// the base joint — spreading every joint would twist fingers.
+const SPREAD_MAX = 0.22;
+
+// Extra thumb rotation toward the palm at thumbOpp = 1
+// (thumb folded across the palm as in B / S).
+const THUMB_OPP_GAIN_Z = 0.45;
+
+function clamp01(v) {
+    if (typeof v !== "number" || !isFinite(v)) return 0;
+    return Math.max(0, Math.min(1, v));
+}
+
+function bendFinger(finger, curl01, progress, opts) {
 
     if (
         !finger ||
@@ -1530,6 +1550,10 @@ function bendFinger(finger, amount, progress, isThumb) {
     }
 
 
+    opts =
+        opts || {};
+
+
     const eased =
         easeInOut(
             progress
@@ -1537,17 +1561,37 @@ function bendFinger(finger, amount, progress, isThumb) {
 
 
     const curl =
-        poseToCurl(
-            amount
+        clamp01(
+            curl01
+        ) * eased;
+
+
+    const spread =
+        clamp01(
+            Math.abs(opts.spread || 0)
+        ) *
+        (opts.spread < 0 ? -1 : 1) *
+        eased;
+
+
+    const opp =
+        clamp01(
+            opts.thumbOpp || 0
         ) * eased;
 
 
     if (
-        curl <= 0.0001
+        curl <= 0.0001 &&
+        Math.abs(spread) <= 0.0001 &&
+        opp <= 0.0001
     ) {
 
         return;
     }
+
+
+    const isThumb =
+        !!opts.isThumb;
 
 
     const maxes =
@@ -1582,20 +1626,38 @@ function bendFinger(finger, amount, progress, isThumb) {
                 ];
 
 
-            const euler =
+            let ex =
+                max * curl;
+
+            let ez =
+                0;
+
+
+            if (
                 isThumb
-                    ? new THREE.Euler(
-                        max * curl,
-                        0,
-                        THUMB_OPPOSITION_Z * curl,
-                        "XYZ"
-                    )
-                    : new THREE.Euler(
-                        max * curl,
-                        0,
-                        0,
-                        "XYZ"
-                    );
+            ) {
+
+                ez =
+                    THUMB_OPPOSITION_Z * curl +
+                    THUMB_OPP_GAIN_Z * opp;
+
+            } else if (
+                index === 0 &&
+                spread !== 0
+            ) {
+
+                ez =
+                    SPREAD_MAX * spread;
+            }
+
+
+            const euler =
+                new THREE.Euler(
+                    ex,
+                    0,
+                    ez,
+                    "XYZ"
+                );
 
 
             const q =
@@ -1617,6 +1679,249 @@ function bendFinger(finger, amount, progress, isThumb) {
     );
 }
 
+
+/* =========================================================
+   POSE SPEC (accurate ASL format + legacy support)
+
+   Accurate format:
+     { curl:   {thumb,index,middle,ring,pinky}  0..1
+       spread: {index,middle,ring,pinky}        -1..1
+       thumbOpp: 0..1  (thumb across palm)
+       wrist: [x,y,z]  (added to base hand orientation)
+       motion: null | "J" | "Z" }
+
+   Legacy format {thumb,index,...} (or {right:{...}}) holds
+   raw radian numbers in [-1.6, 0] and still works.
+   ========================================================= */
+
+function normalizeCurlValue(v) {
+
+    if (
+        typeof v !==
+        "number" ||
+        !isFinite(v)
+    ) {
+
+        return 0;
+    }
+
+
+    // New format uses 0..1 directly; legacy uses
+    // negative radians, converted by poseToCurl().
+    if (
+        v < 0
+    ) {
+
+        return poseToCurl(
+            v
+        );
+    }
+
+
+    return Math.max(
+        0,
+        Math.min(1, v)
+    );
+}
+
+function normalizeSpec(pose) {
+
+    const out = {
+
+        curl: {
+            thumb: 0,
+            index: 0,
+            middle: 0,
+            ring: 0,
+            pinky: 0
+        },
+
+        spread: {},
+
+        thumbOpp: 0,
+
+        wrist: [0, 0, 0],
+
+        motion: null
+    };
+
+
+    if (
+        !pose
+    ) {
+
+        return out;
+    }
+
+
+    // Legacy: {right:{thumb,...}} wrapper.
+    const src =
+        pose.right &&
+        !pose.curl
+            ? pose.right
+            : pose;
+
+
+    if (
+        src.curl
+    ) {
+
+        ["thumb", "index", "middle", "ring", "pinky"].forEach(
+            function(k) {
+
+                out.curl[k] =
+                    normalizeCurlValue(
+                        src.curl[k]
+                    );
+            }
+        );
+
+
+        if (
+            src.spread
+        ) {
+
+            ["index", "middle", "ring", "pinky"].forEach(
+                function(k) {
+
+                    const v =
+                        src.spread[k];
+
+
+                    if (
+                        typeof v ===
+                        "number" &&
+                        isFinite(v)
+                    ) {
+
+                        out.spread[k] =
+                            Math.max(
+                                -1,
+                                Math.min(1, v)
+                            );
+                    }
+                }
+            );
+        }
+
+
+        if (
+            typeof src.thumbOpp ===
+            "number"
+        ) {
+
+            out.thumbOpp =
+                clamp01(
+                    src.thumbOpp
+                );
+
+        } else {
+
+            // Sensible default: partly oppose whenever the
+            // thumb is curled (legacy poses have no field).
+            out.thumbOpp =
+                out.curl.thumb * 0.4;
+        }
+
+
+        if (
+            Array.isArray(
+                src.wrist
+            )
+        ) {
+
+            out.wrist = [
+                src.wrist[0] || 0,
+                src.wrist[1] || 0,
+                src.wrist[2] || 0
+            ];
+        }
+
+
+        if (
+            src.motion === "J" ||
+            src.motion === "Z"
+        ) {
+
+            out.motion =
+                src.motion;
+        }
+
+    } else {
+
+        // Legacy flat numbers (raw radians).
+        ["thumb", "index", "middle", "ring", "pinky"].forEach(
+            function(k) {
+
+                out.curl[k] =
+                    poseToCurl(
+                        src[k] || 0
+                    );
+            }
+        );
+
+
+        out.thumbOpp =
+            out.curl.thumb * 0.4;
+    }
+
+
+    return out;
+}
+
+
+/* =========================================================
+   DYNAMIC LETTERS (J traces a hook, Z traces a zigzag)
+   Extra wrist offset as a function of animation progress.
+   At progress = 1 the end state is held.
+   ========================================================= */
+
+function motionWrist(motion, progress) {
+
+    const e =
+        easeInOut(
+            Math.max(
+                0,
+                Math.min(1, progress)
+            )
+        );
+
+
+    if (
+        motion === "J"
+    ) {
+
+        // Twist down and hook: ends rotated (as a real J does).
+        return [
+            0.25 * Math.sin(e * Math.PI),
+            -0.9 * e,
+            0
+        ];
+    }
+
+
+    if (
+        motion === "Z"
+    ) {
+
+        // Side-to-side zigzag tracing the Z.
+        const wiggle =
+            Math.sin(
+                e * Math.PI * 2
+            );
+
+
+        return [
+            0,
+            0.15 * wiggle,
+            0.35 * wiggle
+        ];
+    }
+
+
+    return [0, 0, 0];
+}
+
 /* =========================================================
    APPLY HAND POSE (FBX or Procedural)
    ========================================================= */
@@ -1625,11 +1930,23 @@ function applyHandPose(side, pose, progress) {
     if (!pose || side !== "right") return;
 
     if (hasFBXBones()) {
-        bendFinger(remyBones.rightThumb, pose.thumb || 0, progress, true);
-        bendFinger(remyBones.rightIndex, pose.index || 0, progress, false);
-        bendFinger(remyBones.rightMiddle, pose.middle || 0, progress, false);
-        bendFinger(remyBones.rightRing, pose.ring || 0, progress, false);
-        bendFinger(remyBones.rightPinky, pose.pinky || 0, progress, false);
+        const spec = normalizeSpec(pose);
+        bendFinger(remyBones.rightThumb, spec.curl.thumb, progress, {
+            isThumb: true,
+            thumbOpp: spec.thumbOpp
+        });
+        bendFinger(remyBones.rightIndex, spec.curl.index, progress, {
+            spread: spec.spread.index || 0
+        });
+        bendFinger(remyBones.rightMiddle, spec.curl.middle, progress, {
+            spread: spec.spread.middle || 0
+        });
+        bendFinger(remyBones.rightRing, spec.curl.ring, progress, {
+            spread: spec.spread.ring || 0
+        });
+        bendFinger(remyBones.rightPinky, spec.curl.pinky, progress, {
+            spread: spec.spread.pinky || 0
+        });
     }
 }
 
@@ -1639,8 +1956,20 @@ function applyHandPose(side, pose, progress) {
 
 function applySignPose(pose, progress) {
     if (hasFBXBones()) {
-        applySigningArm("right", progress);
-        if (pose && pose.right) applyHandPose("right", pose.right, progress);
+        const spec = normalizeSpec(pose);
+        const wrist = [
+            spec.wrist[0],
+            spec.wrist[1],
+            spec.wrist[2]
+        ];
+        if (spec.motion) {
+            const mw = motionWrist(spec.motion, progress);
+            wrist[0] += mw[0];
+            wrist[1] += mw[1];
+            wrist[2] += mw[2];
+        }
+        applySigningArm("right", progress, wrist);
+        applyHandPose("right", spec, progress);
     } else {
         applyProceduralSign(pose, progress);
     }
@@ -1653,447 +1982,224 @@ function applySignPose(pose, progress) {
 
 const SIGN_POSES = {
 
+    // Palm-forward wrist (palm faces the viewer). Verified:
+    // base hand orientation shows the hand edge-on, X -0.9
+    // turns the palm to the camera with fingers up.
+    // G/H share a sideways wrist, P/Q a downward tilt.
+
+    // A: closed fist, thumb straight alongside the index.
     A: {
-
-        right: {
-
-            thumb: -0.60,
-
-            index: -1.60,
-
-            middle: -1.60,
-
-            ring: -1.60,
-
-            pinky: -1.60
-        }
+        curl: { thumb: 0.30, index: 1, middle: 1, ring: 1, pinky: 1 },
+        thumbOpp: 0.15,
+        wrist: [-0.9, 0, 0]
     },
 
 
+    // B: four fingers straight together, thumb folded across palm.
     B: {
-
-        right: {
-
-            thumb: -0.40,
-
-            index: 0,
-
-            middle: 0,
-
-            ring: 0,
-
-            pinky: 0
-        }
+        curl: { thumb: 0.55, index: 0, middle: 0, ring: 0, pinky: 0 },
+        thumbOpp: 0.90,
+        wrist: [-0.9, 0, 0]
     },
 
 
+    // C: open curve like holding a cup, palm forward.
     C: {
-
-        right: {
-
-            thumb: -0.50,
-
-            index: -0.65,
-
-            middle: -0.65,
-
-            ring: -0.65,
-
-            pinky: -0.65
-        }
+        curl: { thumb: 0.35, index: 0.42, middle: 0.42, ring: 0.42, pinky: 0.42 },
+        thumbOpp: 0.35,
+        wrist: [-0.9, 0, 0]
     },
 
 
+    // D: index up, remaining fingers rounded with the thumb.
     D: {
-
-        right: {
-
-            thumb: -0.35,
-
-            index: 0,
-
-            middle: -1.60,
-
-            ring: -1.60,
-
-            pinky: -1.60
-        }
+        curl: { thumb: 0.55, index: 0, middle: 0.62, ring: 0.62, pinky: 0.62 },
+        thumbOpp: 0.80,
+        wrist: [-0.9, 0, 0]
     },
 
 
+    // E: fingers curled down toward the thumb, thumb across.
     E: {
-
-        right: {
-
-            thumb: -0.60,
-
-            index: -1.20,
-
-            middle: -1.20,
-
-            ring: -1.20,
-
-            pinky: -1.20
-        }
+        curl: { thumb: 0.70, index: 0.62, middle: 0.62, ring: 0.62, pinky: 0.62 },
+        thumbOpp: 0.80,
+        wrist: [-0.9, 0, 0]
     },
 
 
+    // F: thumb and index touch (OK circle), other three raised.
     F: {
-
-        right: {
-
-            thumb: -0.30,
-
-            index: -0.40,
-
-            middle: 0,
-
-            ring: 0,
-
-            pinky: 0
-        }
+        curl: { thumb: 0.45, index: 0.45, middle: 0, ring: 0, pinky: 0 },
+        thumbOpp: 0.95,
+        wrist: [-0.9, 0, 0]
     },
 
 
+    // G: index + thumb pinch pointing sideways, palm neutral.
     G: {
-
-        right: {
-
-            thumb: -0.30,
-
-            index: 0,
-
-            middle: -1.50,
-
-            ring: -1.50,
-
-            pinky: -1.50
-        }
+        curl: { thumb: 0.15, index: 0.05, middle: 1, ring: 1, pinky: 1 },
+        thumbOpp: 0.15,
+        wrist: [-0.2, -1.3, 0]
     },
 
 
+    // H: index + middle extended sideways (U shape, sideways).
     H: {
-
-        right: {
-
-            thumb: -0.30,
-
-            index: 0,
-
-            middle: 0,
-
-            ring: -1.50,
-
-            pinky: -1.50
-        }
+        curl: { thumb: 0.80, index: 0, middle: 0, ring: 1, pinky: 1 },
+        thumbOpp: 0.60,
+        wrist: [-0.2, -1.3, 0]
     },
 
 
+    // I: fist with pinky extended up.
     I: {
-
-        right: {
-
-            thumb: -0.35,
-
-            index: -1.50,
-
-            middle: -1.50,
-
-            ring: -1.50,
-
-            pinky: 0
-        }
+        curl: { thumb: 0.70, index: 1, middle: 1, ring: 1, pinky: 0 },
+        thumbOpp: 0.50,
+        wrist: [-0.9, 0, 0]
     },
 
 
+    // J: I handshape tracing a J hook (dynamic).
     J: {
-
-        right: {
-
-            thumb: -0.35,
-
-            index: -1.50,
-
-            middle: -1.50,
-
-            ring: -1.50,
-
-            pinky: 0
-        }
+        curl: { thumb: 0.70, index: 1, middle: 1, ring: 1, pinky: 0 },
+        thumbOpp: 0.50,
+        wrist: [-0.9, 0, 0],
+        motion: "J"
     },
 
 
+    // K: index + middle up, thumb tip between them.
     K: {
-
-        right: {
-
-            thumb: -0.30,
-
-            index: 0,
-
-            middle: 0,
-
-            ring: -1.50,
-
-            pinky: -1.50
-        }
+        curl: { thumb: 0.30, index: 0, middle: 0, ring: 1, pinky: 1 },
+        thumbOpp: 0.40,
+        wrist: [-0.9, 0, 0]
     },
 
 
+    // L: index up, thumb out — L shape.
     L: {
-
-        right: {
-
-            thumb: 0,
-
-            index: 0,
-
-            middle: -1.50,
-
-            ring: -1.50,
-
-            pinky: -1.50
-        }
+        curl: { thumb: 0, index: 0, middle: 1, ring: 1, pinky: 1 },
+        thumbOpp: 0,
+        wrist: [-0.9, 0, 0]
     },
 
 
+    // M: first three fingers folded over the thumb (tip under).
     M: {
-
-        right: {
-
-            thumb: -0.60,
-
-            index: -1.20,
-
-            middle: -1.20,
-
-            ring: -1.20,
-
-            pinky: -1.20
-        }
+        curl: { thumb: 0.85, index: 1, middle: 1, ring: 1, pinky: 0.95 },
+        thumbOpp: 0.25,
+        wrist: [-0.9, 0, 0]
     },
 
 
+    // N: first two fingers folded over the thumb.
     N: {
-
-        right: {
-
-            thumb: -0.60,
-
-            index: -0.90,
-
-            middle: -0.90,
-
-            ring: -1.10,
-
-            pinky: -1.10
-        }
+        curl: { thumb: 0.70, index: 1, middle: 1, ring: 0.95, pinky: 0.90 },
+        thumbOpp: 0.25,
+        wrist: [-0.9, 0, 0]
     },
 
 
+    // O: fingers + thumb curved together into a ring.
     O: {
-
-        right: {
-
-            thumb: -0.55,
-
-            index: -0.65,
-
-            middle: -0.65,
-
-            ring: -0.65,
-
-            pinky: -0.65
-        }
+        curl: { thumb: 0.55, index: 0.55, middle: 0.55, ring: 0.55, pinky: 0.55 },
+        thumbOpp: 0.85,
+        wrist: [-0.9, 0, 0]
     },
 
 
+    // P: K handshape tilted downward.
     P: {
-
-        right: {
-
-            thumb: -0.30,
-
-            index: 0,
-
-            middle: 0,
-
-            ring: -1.50,
-
-            pinky: -1.50
-        }
+        curl: { thumb: 0.30, index: 0, middle: 0, ring: 1, pinky: 1 },
+        thumbOpp: 0.40,
+        wrist: [-0.9, 0, -0.9]
     },
 
 
+    // Q: G pinch tilted downward.
     Q: {
-
-        right: {
-
-            thumb: -0.30,
-
-            index: 0,
-
-            middle: -1.50,
-
-            ring: -1.50,
-
-            pinky: -1.50
-        }
+        curl: { thumb: 0.15, index: 0.05, middle: 1, ring: 1, pinky: 1 },
+        thumbOpp: 0.15,
+        wrist: [-0.2, -1.3, -0.8]
     },
 
 
+    // R: index + middle crossed, others folded.
     R: {
-
-        right: {
-
-            thumb: -0.35,
-
-            index: 0,
-
-            middle: 0,
-
-            ring: -1.50,
-
-            pinky: -1.50
-        }
+        curl: { thumb: 0.70, index: 0, middle: 0, ring: 1, pinky: 1 },
+        thumbOpp: 0.50,
+        spread: { index: -0.9, middle: 0.9 },
+        wrist: [-0.9, 0, 0]
     },
 
 
+    // S: closed fist, thumb wrapped across the front.
     S: {
-
-        right: {
-
-            thumb: -0.60,
-
-            index: -1.60,
-
-            middle: -1.60,
-
-            ring: -1.60,
-
-            pinky: -1.60
-        }
+        curl: { thumb: 0.65, index: 1, middle: 1, ring: 1, pinky: 1 },
+        thumbOpp: 0.95,
+        wrist: [-0.9, 0, 0]
     },
 
 
+    // T: fist, thumb tip between index and middle.
     T: {
-
-        right: {
-
-            thumb: -0.60,
-
-            index: -0.90,
-
-            middle: -1.60,
-
-            ring: -1.60,
-
-            pinky: -1.60
-        }
+        curl: { thumb: 0.35, index: 1, middle: 1, ring: 1, pinky: 1 },
+        thumbOpp: 0.70,
+        wrist: [-0.9, 0, 0]
     },
 
 
+    // U: index + middle together, pointing up.
     U: {
-
-        right: {
-
-            thumb: -0.35,
-
-            index: 0,
-
-            middle: 0,
-
-            ring: -1.50,
-
-            pinky: -1.50
-        }
+        curl: { thumb: 0.70, index: 0, middle: 0, ring: 1, pinky: 1 },
+        thumbOpp: 0.50,
+        wrist: [-0.9, 0, 0]
     },
 
 
+    // V: index + middle fanned apart.
     V: {
-
-        right: {
-
-            thumb: -0.35,
-
-            index: 0,
-
-            middle: 0,
-
-            ring: -1.50,
-
-            pinky: -1.50
-        }
+        curl: { thumb: 0.70, index: 0, middle: 0, ring: 1, pinky: 1 },
+        thumbOpp: 0.50,
+        spread: { index: 0.75, middle: -0.75 },
+        wrist: [-0.9, 0, 0]
     },
 
 
+    // W: index + middle + ring extended and fanned.
     W: {
-
-        right: {
-
-            thumb: -0.30,
-
-            index: 0,
-
-            middle: 0,
-
-            ring: 0,
-
-            pinky: -1.50
-        }
+        curl: { thumb: 0.70, index: 0, middle: 0, ring: 0, pinky: 1 },
+        thumbOpp: 0.50,
+        spread: { index: 0.80, ring: -0.80 },
+        wrist: [-0.9, 0, 0]
     },
 
 
+    // X: hooked index, others folded.
     X: {
-
-        right: {
-
-            thumb: -0.35,
-
-            index: -0.70,
-
-            middle: -1.50,
-
-            ring: -1.50,
-
-            pinky: -1.50
-        }
+        curl: { thumb: 0.70, index: 0.50, middle: 1, ring: 1, pinky: 1 },
+        thumbOpp: 0.60,
+        wrist: [-0.9, 0, 0]
     },
 
 
+    // Y: thumb + pinky extended, middle fingers folded.
     Y: {
-
-        right: {
-
-            thumb: 0,
-
-            index: -1.50,
-
-            middle: -1.50,
-
-            ring: -1.50,
-
-            pinky: 0
-        }
+        curl: { thumb: 0, index: 1, middle: 1, ring: 1, pinky: 0 },
+        thumbOpp: 0,
+        wrist: [-0.9, 0, 0]
     },
 
 
+    // Z: index extended, tracing a Z zigzag (dynamic).
     Z: {
-
-        right: {
-
-            thumb: -0.35,
-
-            index: 0,
-
-            middle: -1.50,
-
-            ring: -1.50,
-
-            pinky: -1.50
-        }
+        curl: { thumb: 0.70, index: 0, middle: 0.90, ring: 0.90, pinky: 0.90 },
+        thumbOpp: 0.55,
+        wrist: [-0.9, 0, 0],
+        motion: "Z"
     }
 };
+
 
 
 /* =========================================================
@@ -3154,18 +3260,13 @@ function applyProceduralSign(pose, progress) {
     proceduralArm.rightHand.rotation.y = 0.25 * eased;
     proceduralArm.rightHand.rotation.z = -0.15 * eased;
 
-    // Finger bending
-    if (pose && pose.right) {
-        const fingerBends = {
-            thumb: pose.right.thumb || 0,
-            index: pose.right.index || 0,
-            middle: pose.right.middle || 0,
-            ring: pose.right.ring || 0,
-            pinky: pose.right.pinky || 0
-        };
+    // Finger bending (supports both accurate and legacy specs).
+    if (pose) {
+        const spec = normalizeSpec(pose);
+        const fingerBends = spec.curl;
 
         Object.keys(fingerBends).forEach(name => {
-            const curl = poseToCurl(fingerBends[name]);
+            const curl = clamp01(fingerBends[name]);
             proceduralArm.rightFingers[name].forEach((segment, idx) => {
                 const strength = 1 - idx * 0.15;
                 segment.rotation.x = curl * 0.9 * strength * eased;
@@ -3585,6 +3686,25 @@ window.debugBones = function() {
 window.testSign = function(key) {
     setSign(key || "A");
     console.log("Testing sign:", key || "A");
+};
+
+// TEMPORARY calibration helper (removed before final): play an
+// arbitrary accurate-format spec immediately at full pose.
+window.testPose = function(spec) {
+    if (!remyLoaded) return "not loaded";
+    handTest.active = false;
+    stopFBXAnimation();
+    restoreAll();
+    const s = normalizeSpec(spec);
+    currentSignKey = "TEST";
+    currentSignPose = s;
+    signAnimation.active = true;
+    signAnimation.startTime = performance.now() - 2000;
+    signAnimation.pose = s;
+    // Jump straight to the held end-state for screenshots.
+    restoreAll();
+    applySignPose(s, 1);
+    return "held test pose";
 };
 
 // Probe for finger-axis debugging: returns serializable bone data.
