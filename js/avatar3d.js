@@ -1468,27 +1468,153 @@ function applySigningArm(side, progress) {
 
 /* =========================================================
    FINGER BEND (FBX only)
+
+   Mixamo finger bones point along local +Y, so natural
+   curl (flexion toward the palm) is a rotation about
+   local X — NOT Z. The old code bent about Z, which
+   splayed fingers sideways (the "scary" look), and used
+   raw -1.6..-2.0 rad on EVERY joint, coiling fingers
+   >360 deg straight through the palm.
+
+   Pose values are legacy radians in [-1.6, 0] (0 =
+   straight, -1.6 = full fist). They are normalized to a
+   0..1 curl and mapped to per-joint anatomical limits so
+   a fist closes naturally without clipping.
    ========================================================= */
 
-function bendFinger(finger, amount, progress) {
-    if (!finger || finger.length === 0) return;
+// Max flexion (radians) per joint at full curl.
+// [base/MCP, PIP, DIP, tip] — base moves least because it
+// carries the whole finger; middle joints do most work.
+const FINGER_CURL_MAX = [0.55, 1.15, 0.95, 0.65];
 
-    const eased = easeInOut(progress);
+// Thumb is oriented differently — smaller curl plus a
+// touch of opposition so it rests across the fingers
+// instead of stabbing through them.
+const THUMB_CURL_MAX = [0.25, 0.55, 0.50, 0.40];
+const THUMB_OPPOSITION_Z = 0.12;
 
-    finger.forEach(function(bone, index) {
-        const rest = restPose.get(bone.uuid);
-        if (!rest) return;
+function poseToCurl(amount) {
 
-        const strength = 1 - index * 0.08;
-        const bend = amount * strength * eased;
+    if (
+        typeof amount !==
+        "number" ||
+        !isFinite(amount)
+    ) {
 
-        const q = new THREE.Quaternion();
-        const euler = new THREE.Euler(0, 0, bend, "XYZ");
-        q.setFromEuler(euler);
+        return 0;
+    }
 
-        bone.quaternion.copy(rest.quaternion);
-        bone.quaternion.multiply(q);
-    });
+
+    // Legacy: 0 = straight, negative = curled.
+    // (Positive values are also tolerated.)
+    const curl =
+        amount <= 0
+            ? -amount / 1.6
+            : amount / 1.6;
+
+
+    return Math.max(
+        0,
+        Math.min(1, curl)
+    );
+}
+
+function bendFinger(finger, amount, progress, isThumb) {
+
+    if (
+        !finger ||
+        finger.length === 0
+    ) {
+
+        return;
+    }
+
+
+    const eased =
+        easeInOut(
+            progress
+        );
+
+
+    const curl =
+        poseToCurl(
+            amount
+        ) * eased;
+
+
+    if (
+        curl <= 0.0001
+    ) {
+
+        return;
+    }
+
+
+    const maxes =
+        isThumb
+            ? THUMB_CURL_MAX
+            : FINGER_CURL_MAX;
+
+
+    finger.forEach(
+        function(bone, index) {
+
+            const rest =
+                restPose.get(
+                    bone.uuid
+                );
+
+
+            if (
+                !rest
+            ) {
+
+                return;
+            }
+
+
+            const max =
+                maxes[
+                    Math.min(
+                        index,
+                        maxes.length - 1
+                    )
+                ];
+
+
+            const euler =
+                isThumb
+                    ? new THREE.Euler(
+                        max * curl,
+                        0,
+                        THUMB_OPPOSITION_Z * curl,
+                        "XYZ"
+                    )
+                    : new THREE.Euler(
+                        max * curl,
+                        0,
+                        0,
+                        "XYZ"
+                    );
+
+
+            const q =
+                new THREE.Quaternion()
+                    .setFromEuler(
+                        euler
+                    );
+
+
+            bone.quaternion.copy(
+                rest.quaternion
+            );
+
+
+            bone.quaternion.multiply(
+                q
+            );
+        }
+    );
 }
 
 /* =========================================================
@@ -1499,11 +1625,11 @@ function applyHandPose(side, pose, progress) {
     if (!pose || side !== "right") return;
 
     if (hasFBXBones()) {
-        bendFinger(remyBones.rightThumb, pose.thumb || 0, progress);
-        bendFinger(remyBones.rightIndex, pose.index || 0, progress);
-        bendFinger(remyBones.rightMiddle, pose.middle || 0, progress);
-        bendFinger(remyBones.rightRing, pose.ring || 0, progress);
-        bendFinger(remyBones.rightPinky, pose.pinky || 0, progress);
+        bendFinger(remyBones.rightThumb, pose.thumb || 0, progress, true);
+        bendFinger(remyBones.rightIndex, pose.index || 0, progress, false);
+        bendFinger(remyBones.rightMiddle, pose.middle || 0, progress, false);
+        bendFinger(remyBones.rightRing, pose.ring || 0, progress, false);
+        bendFinger(remyBones.rightPinky, pose.pinky || 0, progress, false);
     }
 }
 
@@ -2351,7 +2477,7 @@ function updateFullBodyTest() {
         const p = (elapsed - 1500) / 1000;
         restoreAll();
         applySigningArm("right", 1);
-        applyHandPose("right", { thumb: -0.90, index: -2.0, middle: -2.0, ring: -2.0, pinky: -2.0 }, p);
+        applyHandPose("right", { thumb: -0.90, index: -1.6, middle: -1.6, ring: -1.6, pinky: -1.6 }, p);
         return;
     }
 
@@ -3039,10 +3165,10 @@ function applyProceduralSign(pose, progress) {
         };
 
         Object.keys(fingerBends).forEach(name => {
-            const amount = fingerBends[name];
+            const curl = poseToCurl(fingerBends[name]);
             proceduralArm.rightFingers[name].forEach((segment, idx) => {
                 const strength = 1 - idx * 0.15;
-                segment.rotation.x = amount * strength * eased;
+                segment.rotation.x = curl * 0.9 * strength * eased;
             });
         });
     }
@@ -3459,6 +3585,68 @@ window.debugBones = function() {
 window.testSign = function(key) {
     setSign(key || "A");
     console.log("Testing sign:", key || "A");
+};
+
+// Probe for finger-axis debugging: returns serializable bone data.
+window.probeHandBones = function() {
+    if (!avatar) return { loaded: false };
+
+    function info(bone) {
+        if (!bone) return null;
+        const wp = new THREE.Vector3();
+        bone.getWorldPosition(wp);
+        const le = new THREE.Euler().setFromQuaternion(bone.quaternion, "XYZ");
+        const rest = restPose.get(bone.uuid);
+        let restEuler = null;
+        if (rest) {
+            const re = new THREE.Euler().setFromQuaternion(rest.quaternion, "XYZ");
+            restEuler = [re.x, re.y, re.z];
+        }
+        // Direction to first bone-child (if any), in world space.
+        let childDir = null;
+        const boneChild = (bone.children || []).find(c => c.isBone);
+        if (boneChild) {
+            const cp = new THREE.Vector3();
+            boneChild.getWorldPosition(cp);
+            childDir = [cp.x - wp.x, cp.y - wp.y, cp.z - wp.z];
+        }
+        // Local child offset (bone axis in parent space).
+        let localChildOffset = null;
+        if (boneChild) {
+            localChildOffset = [boneChild.position.x, boneChild.position.y, boneChild.position.z];
+        }
+        return {
+            name: bone.name,
+            localPos: [bone.position.x, bone.position.y, bone.position.z],
+            localEuler: [le.x, le.y, le.z],
+            restEuler: restEuler,
+            worldPos: [wp.x, wp.y, wp.z],
+            childDir: childDir,
+            localChildOffset: localChildOffset
+        };
+    }
+
+    return {
+        loaded: true,
+        currentSignKey: currentSignKey,
+        rightHand: info(remyBones.rightHand),
+        rightIndex: remyBones.rightIndex.map(info),
+        rightMiddle: remyBones.rightMiddle.map(info),
+        rightThumb: remyBones.rightThumb.map(info)
+    };
+};
+
+// Focus camera on right hand for close-up screenshots.
+window.focusHand = function(distance) {
+    if (!avatar || !remyBones.rightHand) return "no hand";
+    const wp = new THREE.Vector3();
+    remyBones.rightHand.getWorldPosition(wp);
+    cameraTarget.copy(wp);
+    cameraDistance = distance || 1.1;
+    cameraHeight = wp.y;
+    cameraAngle = 0.35;
+    updateCamera();
+    return "focused hand at " + wp.toArray();
 };
 
 
