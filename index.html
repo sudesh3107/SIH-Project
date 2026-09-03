@@ -220,13 +220,39 @@
 
       <button
         class="nav-link"
-        data-section="progress"
-        onclick="showSection('progress')"
+        data-section="quizzes"
+        onclick="showSection('quizzes')"
       >
 
-        <i class="fa-solid fa-chart-line"></i>
+        <i class="fa-solid fa-clipboard-question"></i>
 
-        <span>Progress</span>
+        <span>Quizzes</span>
+
+      </button>
+
+
+      <button
+        class="nav-link"
+        data-section="results"
+        onclick="showSection('results')"
+      >
+
+        <i class="fa-solid fa-square-poll-vertical"></i>
+
+        <span>Results</span>
+
+      </button>
+
+
+      <button
+        class="nav-link"
+        data-section="dashboard"
+        onclick="showSection('dashboard')"
+      >
+
+        <i class="fa-solid fa-table-columns"></i>
+
+        <span>Dashboard</span>
 
       </button>
 
@@ -504,6 +530,63 @@
           <p>
             Quiz yourself on sign language with
             fun interactive exercises.
+          </p>
+
+        </div>
+
+
+        <div class="feature-card" onclick="showSection('quizzes')" style="cursor:pointer;">
+
+          <div class="feature-icon" style="background:#fee2e2; color:#e11d48;">
+
+            <i class="fa-solid fa-clipboard-question"></i>
+
+          </div>
+
+          <h3>
+            Adaptive Quizzes
+          </h3>
+
+          <p>
+            MCQ, True/False & fill-blanks auto-generated from signs and your own PDFs. Timed, graded, with review.
+          </p>
+
+        </div>
+
+
+        <div class="feature-card" onclick="showSection('results')" style="cursor:pointer;">
+
+          <div class="feature-icon" style="background:#ecfdf5; color:#059669;">
+
+            <i class="fa-solid fa-square-poll-vertical"></i>
+
+          </div>
+
+          <h3>
+            Results & Analytics
+          </h3>
+
+          <p>
+            Track scores, streaks, time spent. Review answers, export CSV/JSON, and download certificates.
+          </p>
+
+        </div>
+
+
+        <div class="feature-card" onclick="showSection('dashboard')" style="cursor:pointer;">
+
+          <div class="feature-icon" style="background:#e0e7ff; color:#4338ca;">
+
+            <i class="fa-solid fa-table-columns"></i>
+
+          </div>
+
+          <h3>
+            Dashboard
+          </h3>
+
+          <p>
+            Unified overview of lessons, streaks, quizzes, PDFs and achievements — your learning HQ.
           </p>
 
         </div>
@@ -864,6 +947,7 @@
             <button class="speech-btn secondary" onclick="shufflePdfCards()"><i class="fa-solid fa-shuffle"></i> Shuffle</button>
             <button class="speech-btn secondary" onclick="downloadPdfFlashcards()"><i class="fa-solid fa-download"></i> Download .txt</button>
             <button class="speech-btn secondary" onclick="downloadPdfFlashcardsCSV()"><i class="fa-solid fa-file-csv"></i> Download CSV</button>
+            <button class="speech-btn primary" onclick="showSection('quizzes'); setTimeout(function(){ startQuiz('pdf-dynamic'); },400)"><i class="fa-solid fa-clipboard-question"></i> Quiz Me on this PDF</button>
           </div>
 
         </div>
@@ -1250,6 +1334,8 @@
 
         <div class="practice-question">
 
+          <div id="practice-q-type" class="practice-q-type">Loading...</div>
+
           <div
             class="q-text"
             id="practice-q-text"
@@ -1265,6 +1351,12 @@
             Click the letter that matches the shown sign
           </div>
 
+          <div class="practice-controls">
+            <button id="practice-hint-btn" class="speech-btn-sm" onclick="showPracticeHint()" type="button"><i class="fa-solid fa-lightbulb"></i> Hint</button>
+            <button class="speech-btn-sm" onclick="generateQuestion()" type="button"><i class="fa-solid fa-forward"></i> Skip</button>
+            <button class="speech-btn-sm" onclick="try{ if(practiceQuestion && practiceQuestion.signKey && typeof speakWord==='function') speakWord(practiceQuestion.signKey + ' means ' + practiceQuestion.desc); }catch(e){}" type="button"><i class="fa-solid fa-volume-high"></i> Speak</button>
+          </div>
+
         </div>
 
 
@@ -1272,6 +1364,12 @@
           class="practice-options"
           id="practice-options"
         ></div>
+
+        <div id="practice-explain" class="practice-explain" style="display:none;"></div>
+
+        <div style="margin-top:18px; text-align:center;">
+          <button class="speech-btn secondary" onclick="showSection('quizzes')" style="margin:0 auto;"><i class="fa-solid fa-clipboard-question"></i> Try Full Quizzes</button>
+        </div>
 
 
       </div>
@@ -1282,11 +1380,11 @@
 
 
   <!-- =====================================================
-       PROGRESS
+       QUIZZES
   ====================================================== -->
 
   <section
-    id="sec-progress"
+    id="sec-quizzes"
     class="section"
     style="display:none;"
   >
@@ -1294,33 +1392,310 @@
     <div class="container">
 
       <div class="page-title">
-        Your Progress
+        <i class="fa-solid fa-clipboard-question" style="color:var(--primary);"></i>
+        Quizzes
+      </div>
+
+      <div class="page-subtitle">
+        Adaptive quizzes from Sign Language and your own PDFs. Choose a quiz or build a custom one — all graded instantly.
+      </div>
+
+      <div class="quiz-topbar">
+        <div class="quiz-topbar-left">
+          <div class="quiz-mini-label"><i class="fa-solid fa-chart-line"></i> Your stats</div>
+          <div id="quiz-mini-stats" class="quiz-mini-stats">No attempts yet</div>
+        </div>
+        <div class="quiz-topbar-right">
+          <button class="speech-btn secondary" onclick="showSection('results')"><i class="fa-solid fa-square-poll-vertical"></i> View Results</button>
+          <button class="speech-btn secondary" onclick="buildQuizCatalog();renderQuizCatalog();renderQuizStatsMini();showToast('Catalog refreshed','info')"><i class="fa-solid fa-rotate"></i> Refresh</button>
+        </div>
+      </div>
+
+      <!-- Catalog view -->
+      <div id="quiz-catalog-view">
+
+        <!-- Filters + Search -->
+        <div class="quiz-controls">
+          <div id="quiz-filter-row" class="category-filters"></div>
+          <div class="dictionary-search" style="margin-bottom:12px;">
+            <input type="text" id="quiz-search" placeholder="Search quizzes (e.g., PDF, alphabet, greetings...)" oninput="filterQuizCatalog()">
+          </div>
+        </div>
+
+        <!-- Custom creator -->
+        <div class="quiz-creator">
+          <h3><i class="fa-solid fa-wand-magic-sparkles"></i> Create Custom Quiz</h3>
+          <div class="quiz-creator-grid">
+            <label>Source
+              <select id="custom-quiz-source" class="pdf-select">
+                <option value="alphabet">Alphabet A–Z</option>
+                <option value="greetings">Greetings</option>
+                <option value="essential">Essential Words</option>
+                <option value="family-feelings">Family & Feelings</option>
+                <option value="tech-fun">Tech & Fun</option>
+                <option value="all">All Signs (Mixed)</option>
+                <option value="truefalse">True / False Drill</option>
+                <option value="pdf">PDF Document (requires PDF)</option>
+              </select>
+            </label>
+            <label>Questions
+              <select id="custom-quiz-num" class="pdf-select">
+                <option value="5">5 Questions</option>
+                <option value="10" selected>10 Questions</option>
+                <option value="15">15 Questions</option>
+                <option value="20">20 Questions</option>
+              </select>
+            </label>
+            <label>Difficulty
+              <select id="custom-quiz-diff" class="pdf-select">
+                <option value="Beginner">Beginner</option>
+                <option value="Intermediate">Intermediate</option>
+                <option value="Advanced">Advanced</option>
+              </select>
+            </label>
+            <label class="quiz-creator-check">
+              <input type="checkbox" id="custom-quiz-timed"> <span><i class="fa-solid fa-stopwatch"></i> Timed</span>
+            </label>
+          </div>
+          <button class="speech-btn primary" onclick="createCustomQuiz()"><i class="fa-solid fa-play"></i> Build & Start</button>
+          <p class="quiz-creator-note">PDF quizzes are auto-generated from your loaded PDF in PDF Studio. Load a PDF first, then choose “PDF Document”.</p>
+        </div>
+
+        <div id="quiz-catalog-grid" class="quiz-grid"></div>
+        <div id="quiz-catalog-empty" class="pdf-empty" style="display:none; text-align:center; padding:30px;">
+          <i class="fa-solid fa-magnifying-glass" style="font-size:1.6rem;"></i>
+          <p style="margin-top:10px;">No quizzes match your filter/search.</p>
+        </div>
+
+      </div>
+
+      <!-- Player (hidden until start) -->
+      <div id="quiz-player" class="quiz-player" style="display:none;">
+
+        <div class="quiz-player-header">
+          <div>
+            <h3 id="quiz-player-title">Quiz Title</h3>
+            <p id="quiz-player-subtitle">Difficulty • N questions</p>
+          </div>
+          <div class="quiz-player-meta">
+            <span class="quiz-timer" id="quiz-timer"><i class="fa-solid fa-clock"></i> 00:00</span>
+            <span class="quiz-score-live" id="quiz-score-live">Score: 0</span>
+            <button class="speech-btn danger" onclick="exitQuiz()" style="padding:8px 14px; font-size:0.85rem;"><i class="fa-solid fa-xmark"></i> Exit</button>
+          </div>
+        </div>
+
+        <div class="quiz-progress-wrap">
+          <div class="quiz-progress-top">
+            <span id="quiz-progress-text">Question 1 of 10</span>
+            <span id="quiz-progress-pct"></span>
+          </div>
+          <div class="progress-bar" style="height:8px;"><div id="quiz-progress-bar" class="progress-fill" style="width:0%"></div></div>
+          <div id="quiz-dots" class="quiz-dots"></div>
+        </div>
+
+        <div id="quiz-question-body" class="quiz-question-card"></div>
+
+        <div class="quiz-player-footer">
+          <button id="quiz-btn-prev" class="nav-btn" onclick="prevQuestion()"><i class="fa-solid fa-chevron-left"></i> Previous</button>
+          <div style="display:flex; gap:8px;">
+            <button id="quiz-btn-next" class="nav-btn primary" onclick="nextQuestion()">Next <i class="fa-solid fa-chevron-right"></i></button>
+            <button id="quiz-btn-submit" class="speech-btn primary" onclick="submitQuiz()" style="display:none;"><i class="fa-solid fa-paper-plane"></i> Submit Quiz</button>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- Result view (after submit) -->
+      <div id="quiz-result-view" class="quiz-result-view" style="display:none;">
+        <div class="quiz-result-card">
+          <div id="quiz-result-score" class="quiz-result-score"></div>
+          <div id="quiz-result-meta" class="quiz-result-meta"></div>
+          <div class="quiz-result-actions">
+            <button class="speech-btn primary" onclick="retakeCurrentQuiz()"><i class="fa-solid fa-rotate"></i> Retake</button>
+            <button class="speech-btn secondary" onclick="showSection('results')"><i class="fa-solid fa-square-poll-vertical"></i> Go to Results</button>
+            <button class="speech-btn secondary" onclick="closeQuizResult()"><i class="fa-solid fa-house"></i> Back to Quizzes</button>
+            <button id="quiz-btn-certificate" class="speech-btn secondary" onclick="downloadCertificate()" style="display:none;"><i class="fa-solid fa-award"></i> Certificate</button>
+            <button class="speech-btn secondary" onclick="shareLastResult()"><i class="fa-solid fa-share-nodes"></i> Share</button>
+          </div>
+        </div>
+        <h3 style="margin:18px 0 10px; font-size:1.05rem; font-weight:800;"><i class="fa-solid fa-list-check"></i> Review Answers</h3>
+        <div id="quiz-result-breakdown" class="quiz-breakdown"></div>
+      </div>
+
+    </div>
+
+  </section>
+
+
+  <!-- =====================================================
+       RESULTS
+  ====================================================== -->
+
+  <section
+    id="sec-results"
+    class="section"
+    style="display:none;"
+  >
+
+    <div class="container">
+
+      <div class="page-title">
+        <i class="fa-solid fa-square-poll-vertical" style="color:var(--primary);"></i>
+        Results & Analytics
+      </div>
+
+      <div class="page-subtitle">
+        Every attempt is saved in your browser. Review mistakes, track progress, export, and earn certificates.
+      </div>
+
+      <div id="results-stats-grid" class="progress-grid" style="margin-bottom:22px;"></div>
+
+      <div class="results-chart-card">
+        <h3 style="font-size:1rem; font-weight:800; margin-bottom:10px;"><i class="fa-solid fa-chart-line"></i> Progress Over Time (last 10 attempts)</h3>
+        <div id="results-chart"></div>
+      </div>
+
+      <div class="results-controls">
+        <div id="results-filter-row" class="category-filters" style="margin-bottom:12px;">
+          <button class="cat-filter active" onclick="setResultsFilter('all')">All</button>
+          <button class="cat-filter" onclick="setResultsFilter('sign')">Sign</button>
+          <button class="cat-filter" onclick="setResultsFilter('pdf')">PDF</button>
+        </div>
+        <div class="dictionary-search" style="margin-bottom:8px;">
+          <input type="text" id="results-search" placeholder="Search results (quiz title...)" oninput="filterResultsHistory()">
+        </div>
+        <div class="results-toolbar">
+          <span id="results-count" class="pdf-summary-stats">0 result(s)</span>
+          <div style="display:flex; gap:8px; flex-wrap:wrap;">
+            <button class="speech-btn-sm" onclick="exportResults()"><i class="fa-solid fa-file-csv"></i> Export CSV</button>
+            <button class="speech-btn-sm" onclick="exportResultsJSON()"><i class="fa-solid fa-file-code"></i> Export JSON</button>
+            <button class="speech-btn-sm" onclick="shareLastResult()"><i class="fa-solid fa-share-nodes"></i> Share Last</button>
+            <button class="speech-btn-sm" onclick="downloadCertificate()"><i class="fa-solid fa-award"></i> Certificate</button>
+            <button class="speech-btn-sm" style="color:var(--danger); border-color:#fecaca;" onclick="clearAllQuizHistory()"><i class="fa-solid fa-trash"></i> Clear All</button>
+          </div>
+        </div>
+      </div>
+
+      <div id="results-history-list" class="results-list"></div>
+      <div id="results-history-empty" class="pdf-empty" style="display:none; text-align:center; padding:30px; background:var(--bg-card); border:1px solid var(--border); border-radius:var(--radius);">
+        <i class="fa-solid fa-clipboard" style="font-size:1.6rem;"></i>
+        <p style="margin-top:10px;">No results yet. Take a quiz in the Quizzes section to see it here.</p>
+        <button class="speech-btn primary" style="margin:14px auto 0;" onclick="showSection('quizzes')"><i class="fa-solid fa-play"></i> Go to Quizzes</button>
+      </div>
+
+      <div id="results-detail" class="quiz-detail-panel" style="display:none;">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+          <h3 id="results-detail-title" style="font-size:1rem; font-weight:800;"></h3>
+          <button class="speech-btn secondary" onclick="closeResultsDetail()" style="padding:8px 12px;"><i class="fa-solid fa-xmark"></i> Close</button>
+        </div>
+        <div id="results-detail-list" class="quiz-breakdown"></div>
+        <div style="margin-top:12px; display:flex; gap:8px; flex-wrap:wrap;">
+          <button class="speech-btn primary" onclick="closeResultsDetail(); var h=loadQuizHistory(); var last=h.length?h[h.length-1]:null; if(last) retakeQuiz(last.quizId);"><i class="fa-solid fa-rotate"></i> Retake</button>
+          <button class="speech-btn secondary" onclick="downloadCertificate()"><i class="fa-solid fa-award"></i> Certificate</button>
+        </div>
+      </div>
+
+    </div>
+
+  </section>
+
+
+  <!-- =====================================================
+       DASHBOARD
+  ====================================================== -->
+
+  <section
+    id="sec-dashboard"
+    class="section"
+    style="display:none;"
+  >
+
+    <div class="container">
+
+      <div class="page-title">
+        <i class="fa-solid fa-table-columns" style="color:var(--primary);"></i>
+        Dashboard
       </div>
 
 
       <div class="page-subtitle">
-        Track your learning journey
+        Your unified overview — lessons, practice, quizzes, PDFs and streaks in one place.
       </div>
 
-
+      <!-- Top stats -->
       <div
         class="progress-grid"
         id="progress-grid"
       ></div>
 
-
-      <div class="section-title">
-
-        <h2 style="font-size:1.4rem;">
-          Learning Paths
-        </h2>
-
+      <!-- Quick actions -->
+      <div class="dashboard-actions">
+        <button class="speech-btn primary" onclick="showSection('learn')"><i class="fa-solid fa-hand"></i> Continue Learning</button>
+        <button class="speech-btn primary" onclick="showSection('quizzes')"><i class="fa-solid fa-clipboard-question"></i> Take a Quiz</button>
+        <button class="speech-btn secondary" onclick="showSection('practice')"><i class="fa-solid fa-gamepad"></i> Practice</button>
+        <button class="speech-btn secondary" onclick="showSection('pdf')"><i class="fa-solid fa-file-pdf"></i> PDF Studio</button>
+        <button class="speech-btn secondary" onclick="showSection('results')"><i class="fa-solid fa-square-poll-vertical"></i> Results</button>
       </div>
 
+      <div class="dashboard-two-col">
 
-      <div
-        id="lesson-list"
-      ></div>
+        <!-- Left: Learning paths + Recent PDFs -->
+        <div>
+
+          <div class="section-title" style="text-align:left; margin: 22px 0 14px;">
+
+            <h2 style="font-size:1.25rem; display:flex; align-items:center; gap:8px;">
+              <i class="fa-solid fa-graduation-cap" style="color:var(--primary)"></i> Learning Paths
+            </h2>
+
+          </div>
+
+          <div
+            id="lesson-list"
+          ></div>
+
+          <div id="dashboard-pdf-card" class="dashboard-card" style="margin-top:18px;">
+            <h3 style="font-size:1rem; font-weight:800; margin-bottom:8px; display:flex; align-items:center; gap:8px;"><i class="fa-solid fa-file-pdf" style="color:#d97706;"></i> PDF Studio</h3>
+            <div id="dashboard-pdf-stats" class="pdf-empty" style="font-size:0.9rem;">No PDF loaded yet. Upload in PDF Studio to see summaries & flashcards here.</div>
+            <button class="speech-btn-sm" style="margin-top:10px;" onclick="showSection('pdf')"><i class="fa-solid fa-arrow-up-right-from-square"></i> Open PDF Studio</button>
+          </div>
+
+        </div>
+
+        <!-- Right: Analytics + Recent activity -->
+        <div>
+
+          <div class="section-title" style="text-align:left; margin: 22px 0 14px;">
+            <h2 style="font-size:1.25rem; display:flex; align-items:center; gap:8px;">
+              <i class="fa-solid fa-chart-line" style="color:var(--success)"></i> Analytics & Activity
+            </h2>
+          </div>
+
+          <div id="dashboard-analytics" class="dashboard-card">
+            <h4 style="font-size:0.95rem; font-weight:800; margin-bottom:10px;">Progress Overview</h4>
+            <div id="dashboard-chart" class="dashboard-chart-placeholder">
+              <p class="pdf-empty" style="text-align:center; padding:10px;">Take lessons & quizzes to build your chart.</p>
+            </div>
+          </div>
+
+          <div id="dashboard-activity" class="dashboard-card" style="margin-top:14px;">
+            <h4 style="font-size:0.95rem; font-weight:800; margin-bottom:10px; display:flex; align-items:center; gap:8px;"><i class="fa-solid fa-clock-rotate-left"></i> Recent Activity</h4>
+            <div id="dashboard-activity-list"></div>
+            <div id="dashboard-activity-empty" class="pdf-empty" style="font-size:0.85rem;">No recent activity. Start learning to populate your timeline.</div>
+          </div>
+
+          <div class="dashboard-card" style="margin-top:14px;">
+            <h4 style="font-size:0.95rem; font-weight:800; margin-bottom:8px;">Streak & Goals</h4>
+            <div id="dashboard-streak"></div>
+            <div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:10px;">
+              <button class="speech-btn-sm" onclick="showSection('practice')"><i class="fa-solid fa-fire"></i> Keep Streak</button>
+              <button class="speech-btn-sm" onclick="localStorage.removeItem('edubridge_progress'); localStorage.removeItem('eduaccess_quiz_history'); buildDashboard(); showToast('Progress reset','info')"><i class="fa-solid fa-rotate-left"></i> Reset Progress</button>
+            </div>
+          </div>
+
+        </div>
+
+      </div>
 
     </div>
 
@@ -1373,6 +1748,8 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 
   <script src="js/pdfStudio.js"></script>
+
+  <script src="js/quizModule.js"></script>
 
   <script src="js/app.js"></script>
 
