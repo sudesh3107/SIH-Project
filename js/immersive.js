@@ -58,22 +58,34 @@
     revealEls.forEach(function(el){ el.classList.add('visible'); });
   }
 
-  // Tilt for feature cards and other cards
-  var tiltEls = document.querySelectorAll('.feature-card, .quiz-card, .detect-video-card, .pdf-upload-card');
-  tiltEls.forEach(function(card){
-    card.addEventListener('mousemove', function(e){
-      var rect = card.getBoundingClientRect();
-      var x = e.clientX - rect.left;
-      var y = e.clientY - rect.top;
-      var cx = rect.width/2, cy = rect.height/2;
-      var rx = (y - cy) / -18;
-      var ry = (x - cx) / 18;
-      card.style.transform = 'perspective(900px) rotateX('+rx+'deg) rotateY('+ry+'deg) translateY(-4px) scale(1.01)';
+  // Tilt ONLY for home feature cards — not for interactive panels (Detect/PDF)
+  var tiltEls = document.querySelectorAll('.features .feature-card');
+  var prefersReduced = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  var isTouch = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
+  if(!prefersReduced && !isTouch){
+    tiltEls.forEach(function(card){
+      var raf = null;
+      card.addEventListener('mousemove', function(e){
+        if(raf) return;
+        raf = requestAnimationFrame(function(){
+          var rect = card.getBoundingClientRect();
+          var x = e.clientX - rect.left;
+          var y = e.clientY - rect.top;
+          var cx = rect.width/2, cy = rect.height/2;
+          // subtler: divisor 28 not 18, scale 1.015
+          var rx = (y - cy) / -28;
+          var ry = (x - cx) / 28;
+          rx = Math.max(-6, Math.min(6, rx));
+          ry = Math.max(-6, Math.min(6, ry));
+          card.style.transform = 'perspective(900px) rotateX('+rx+'deg) rotateY('+ry+'deg) translateY(-3px)';
+          raf = null;
+        });
+      });
+      card.addEventListener('mouseleave', function(){
+        card.style.transform = '';
+      });
     });
-    card.addEventListener('mouseleave', function(){
-      card.style.transform = '';
-    });
-  });
+  }
 
   // Parallax for hero orbs
   var hero = document.querySelector('.hero');
